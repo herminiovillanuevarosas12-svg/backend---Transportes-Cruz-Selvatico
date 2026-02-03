@@ -1,0 +1,14 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "npm run start"
+healthcheckPath = "/api/health"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# Variables de entorno para consistencia temporal
+# TZ=UTC asegura que el runtime de Node use UTC para evitar
+# conversiones implícitas de timezone
+[env]
+TZ = "UTC"

@@ -1,0 +1,714 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Rol {
+  id                   Int          @id @default(autoincrement())
+  nombre               String       @unique @db.VarChar(50)
+  estado               Int          @default(1)
+  userIdRegistration   Int?         @map("user_id_registration")
+  dateTimeRegistration DateTime     @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification   Int?         @map("user_id_modification")
+  dateTimeModification DateTime?    @map("date_time_modification") @db.Timestamptz(6)
+  rolesPermisos        RolPermiso[]
+  usuarios             Usuario[]
+
+  @@map("tbl_roles")
+}
+
+model Permiso {
+  id                   Int          @id @default(autoincrement())
+  codigo               String       @unique @db.VarChar(50)
+  nombre               String       @db.VarChar(100)
+  tipo                 TipoPermiso
+  recurso              String       @db.VarChar(100)
+  estado               Int          @default(1)
+  userIdRegistration   Int?         @map("user_id_registration")
+  dateTimeRegistration DateTime     @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification   Int?         @map("user_id_modification")
+  dateTimeModification DateTime?    @map("date_time_modification") @db.Timestamptz(6)
+  rolesPermisos        RolPermiso[]
+
+  @@map("tbl_permisos")
+}
+
+model RolPermiso {
+  id                   Int       @id @default(autoincrement())
+  idRol                Int       @map("id_rol")
+  idPermiso            Int       @map("id_permiso")
+  estado               Int       @default(1)
+  userIdRegistration   Int?      @map("user_id_registration")
+  dateTimeRegistration DateTime  @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification   Int?      @map("user_id_modification")
+  dateTimeModification DateTime? @map("date_time_modification") @db.Timestamptz(6)
+  permiso              Permiso   @relation(fields: [idPermiso], references: [id])
+  rol                  Rol       @relation(fields: [idRol], references: [id])
+
+  @@unique([idRol, idPermiso])
+  @@map("tbl_roles_permisos")
+}
+
+model Punto {
+  id                   Int                @id @default(autoincrement())
+  nombre               String             @db.VarChar(100)
+  tipo                 TipoPunto
+  ciudad               String             @db.VarChar(100)
+  direccion            String?            @db.VarChar(255)
+  estado               Int                @default(1)
+  userIdRegistration   Int?               @map("user_id_registration")
+  dateTimeRegistration DateTime           @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification   Int?               @map("user_id_modification")
+  dateTimeModification DateTime?          @map("date_time_modification") @db.Timestamptz(6)
+  encomiendasDestino   Encomienda[]       @relation("EncomiendaDestino")
+  encomiendasOrigen    Encomienda[]       @relation("EncomiendaOrigen")
+  eventosEncomienda    EventoEncomienda[]
+  rutasDestino         Ruta[]             @relation("RutaDestino")
+  rutasOrigen          Ruta[]             @relation("RutaOrigen")
+  usuarios             Usuario[]
+
+  @@map("tbl_puntos")
+}
+
+model Usuario {
+  id                   Int                   @id @default(autoincrement())
+  nombres              String                @db.VarChar(150)
+  correo               String                @unique @db.VarChar(100)
+  contrasena           String                @db.VarChar(255)
+  idRol                Int                   @map("id_rol")
+  idPunto              Int?                  @map("id_punto")
+  estado               Int                   @default(1)
+  userIdRegistration   Int?                  @map("user_id_registration")
+  dateTimeRegistration DateTime              @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification   Int?                  @map("user_id_modification")
+  dateTimeModification DateTime?             @map("date_time_modification") @db.Timestamptz(6)
+  archivosMedia        ArchivoMedia[]
+  encomiendasCreadas   Encomienda[]
+  eventosEncomienda    EventoEncomienda[]
+  tbl_landing_banners  tbl_landing_banners[]
+  logsAuditoria        LogAuditoria[]
+  ticketsAnulados      Ticket[]              @relation("TicketAnulador")
+  ticketsVendidos      Ticket[]              @relation("TicketVendedor")
+  punto                Punto?                @relation(fields: [idPunto], references: [id])
+  rol                  Rol                   @relation(fields: [idRol], references: [id])
+
+  @@map("tbl_usuarios")
+}
+
+model TipoCarro {
+  id          Int       @id @default(autoincrement())
+  nombre      String    @db.VarChar(100)
+  descripcion String?
+  estado      Int?      @default(1)
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy   Int?      @map("created_by")
+  updatedAt   DateTime? @map("updated_at") @db.Timestamptz(6)
+  updatedBy   Int?      @map("updated_by")
+  rutas       Ruta[]
+
+  @@index([estado], map: "idx_tipos_carro_estado")
+  @@map("tbl_tipos_carro")
+}
+
+model Ruta {
+  id                   Int           @id @default(autoincrement())
+  idPuntoOrigen        Int           @map("id_punto_origen")
+  idPuntoDestino       Int           @map("id_punto_destino")
+  precioPasaje         Decimal       @map("precio_pasaje") @db.Decimal(10, 2)
+  estado               Int           @default(1)
+  userIdRegistration   Int?          @map("user_id_registration")
+  dateTimeRegistration DateTime      @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification   Int?          @map("user_id_modification")
+  dateTimeModification DateTime?     @map("date_time_modification") @db.Timestamptz(6)
+  idTipoCarro          Int           @map("id_tipo_carro")
+  horarios             HorarioRuta[]
+  tipoCarro            TipoCarro     @relation(fields: [idTipoCarro], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ruta_tipo_carro")
+  puntoDestino         Punto         @relation("RutaDestino", fields: [idPuntoDestino], references: [id])
+  puntoOrigen          Punto         @relation("RutaOrigen", fields: [idPuntoOrigen], references: [id])
+  viajes               Viaje[]
+
+  @@unique([idPuntoOrigen, idPuntoDestino, idTipoCarro], map: "tbl_rutas_origen_destino_tipo_key")
+  @@index([idTipoCarro], map: "idx_rutas_tipo_carro")
+  @@map("tbl_rutas")
+}
+
+model HorarioRuta {
+  id                   Int       @id @default(autoincrement())
+  idRuta               Int       @map("id_ruta")
+  horaSalida           DateTime  @map("hora_salida") @db.Time(6)
+  habilitado           Boolean   @default(true)
+  userIdRegistration   Int?      @map("user_id_registration")
+  dateTimeRegistration DateTime  @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification   Int?      @map("user_id_modification")
+  dateTimeModification DateTime? @map("date_time_modification") @db.Timestamptz(6)
+  capacidadTotal       Int       @default(40) @map("capacidad_total")
+  ruta                 Ruta      @relation(fields: [idRuta], references: [id])
+  viajes               Viaje[]
+
+  @@unique([idRuta, horaSalida])
+  @@index([capacidadTotal], map: "idx_horarios_ruta_capacidad")
+  @@map("tbl_horarios_ruta")
+}
+
+model Viaje {
+  id                   Int         @id @default(autoincrement())
+  idRuta               Int         @map("id_ruta")
+  idHorario            Int         @map("id_horario")
+  fechaServicio        DateTime    @map("fecha_servicio") @db.Date
+  capacidadTotal       Int         @map("capacidad_total")
+  capacidadVendida     Int         @default(0) @map("capacidad_vendida")
+  estado               EstadoViaje @default(ABIERTO)
+  userIdRegistration   Int?        @map("user_id_registration")
+  dateTimeRegistration DateTime    @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification   Int?        @map("user_id_modification")
+  dateTimeModification DateTime?   @map("date_time_modification") @db.Timestamptz(6)
+  tickets              Ticket[]
+  horario              HorarioRuta @relation(fields: [idHorario], references: [id])
+  ruta                 Ruta        @relation(fields: [idRuta], references: [id])
+
+  @@unique([idRuta, idHorario, fechaServicio])
+  @@map("tbl_viajes")
+}
+
+model Pasajero {
+  id                   Int          @id @default(autoincrement())
+  nombreCompleto       String       @map("nombre_completo") @db.VarChar(150)
+  documentoIdentidad   String       @unique @map("documento_identidad") @db.VarChar(20)
+  telefono             String       @db.VarChar(20)
+  userIdRegistration   Int?         @map("user_id_registration")
+  dateTimeRegistration DateTime     @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification   Int?         @map("user_id_modification")
+  dateTimeModification DateTime?    @map("date_time_modification") @db.Timestamptz(6)
+  email                String?      @db.VarChar(100)
+  puntos               Int          @default(0)
+  puntos_disponibles   Int?         @default(0)
+  puntos_historicos    Int?         @default(0)
+  tipo_documento       String?      @default("1") @db.VarChar(1)
+  tbl_encomiendas      Encomienda[]
+  tickets              Ticket[]
+
+  @@index([tipo_documento], map: "idx_pasajeros_tipo_documento")
+  @@map("tbl_pasajeros")
+}
+
+model Ticket {
+  id                   Int               @id @default(autoincrement())
+  idViaje              Int               @map("id_viaje")
+  idPasajero           Int               @map("id_pasajero")
+  codigoInterno        String            @unique @map("codigo_interno") @db.VarChar(20)
+  fechaVenta           DateTime          @default(now()) @map("fecha_venta") @db.Timestamptz(6)
+  idUsuarioVenta       Int               @map("id_usuario_venta")
+  metodoPago           MetodoPago        @map("metodo_pago")
+  estado               EstadoTicket      @default(EMITIDO)
+  fechaAnulacion       DateTime?         @map("fecha_anulacion") @db.Timestamptz(6)
+  idUsuarioAnulacion   Int?              @map("id_usuario_anulacion")
+  motivoAnulacion      String?           @map("motivo_anulacion") @db.VarChar(255)
+  invoiceStatus        EstadoFacturacion @default(PENDIENTE) @map("invoice_status")
+  invoiceRef           String?           @map("invoice_ref") @db.VarChar(50)
+  userIdRegistration   Int?              @map("user_id_registration")
+  dateTimeRegistration DateTime          @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification   Int?              @map("user_id_modification")
+  dateTimeModification DateTime?         @map("date_time_modification") @db.Timestamptz(6)
+  precio_original      Decimal?          @db.Decimal(10, 2)
+  puntos_usados        Int?              @default(0)
+  descuento_puntos     Decimal?          @default(0) @db.Decimal(10, 2)
+  precio_final         Decimal?          @db.Decimal(10, 2)
+  puntos_ganados       Int?              @default(0)
+  id_comprobante       Int?
+  id_nota_venta        Int?
+  comentario           String?           @db.VarChar(500)
+  tbl_notas_venta      tbl_notas_venta?  @relation(fields: [id_nota_venta], references: [id], onUpdate: NoAction, map: "fk_tickets_nota_venta")
+  tbl_comprobantes     tbl_comprobantes? @relation(fields: [id_comprobante], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  pasajero             Pasajero          @relation(fields: [idPasajero], references: [id])
+  usuarioAnulacion     Usuario?          @relation("TicketAnulador", fields: [idUsuarioAnulacion], references: [id])
+  usuarioVenta         Usuario           @relation("TicketVendedor", fields: [idUsuarioVenta], references: [id])
+  viaje                Viaje             @relation(fields: [idViaje], references: [id])
+
+  @@map("tbl_tickets")
+}
+
+model Encomienda {
+  id                                                                      Int                  @id @default(autoincrement())
+  codigoTracking                                                          String               @unique @map("codigo_tracking") @db.VarChar(20)
+  idPuntoOrigen                                                           Int                  @map("id_punto_origen")
+  idPuntoDestino                                                          Int                  @map("id_punto_destino")
+  remitenteNombre                                                         String               @map("remitente_nombre") @db.VarChar(150)
+  remitenteDni                                                            String               @map("remitente_dni") @db.VarChar(20)
+  remitenteTelefono                                                       String               @map("remitente_telefono") @db.VarChar(20)
+  destinatarioNombre                                                      String               @map("destinatario_nombre") @db.VarChar(150)
+  destinatarioTelefono                                                    String               @map("destinatario_telefono") @db.VarChar(20)
+  tipoPaquete                                                             String               @map("tipo_paquete") @db.VarChar(50)
+  descripcion                                                             String?              @db.VarChar(255)
+  peso                                                                    Decimal              @db.Decimal(10, 2)
+  alto                                                                    Decimal              @db.Decimal(10, 2)
+  ancho                                                                   Decimal              @db.Decimal(10, 2)
+  largo                                                                   Decimal              @db.Decimal(10, 2)
+  precioCalculado                                                         Decimal              @map("precio_calculado") @db.Decimal(10, 2)
+  estadoActual                                                            EstadoEncomienda     @default(REGISTRADO) @map("estado_actual")
+  idUsuarioCreacion                                                       Int                  @map("id_usuario_creacion")
+  invoiceStatus                                                           EstadoFacturacion    @default(PENDIENTE) @map("invoice_status")
+  invoiceRef                                                              String?              @map("invoice_ref") @db.VarChar(50)
+  userIdRegistration                                                      Int?                 @map("user_id_registration")
+  dateTimeRegistration                                                    DateTime             @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification                                                      Int?                 @map("user_id_modification")
+  dateTimeModification                                                    DateTime?            @map("date_time_modification") @db.Timestamptz(6)
+  id_cliente                                                              Int?
+  puntos_usados                                                           Int?                 @default(0)
+  descuento_puntos                                                        Decimal?             @default(0) @db.Decimal(10, 2)
+  precio_final                                                            Decimal?             @db.Decimal(10, 2)
+  puntos_ganados                                                          Int?                 @default(0)
+  id_comprobante                                                          Int?
+  id_guia_remision                                                        Int?
+  id_nota_venta                                                           Int?
+  destinatario_dni                                                        String?              @db.VarChar(20)
+  pago_al_recojo                                                          Boolean              @default(false)
+  clave_seguridad                                                         String?              @db.VarChar(4)
+  tipo_comprobante_pendiente                                              String?              @db.VarChar(15)
+  datos_factura_pendiente                                                 Json?
+  comentario                                                              String?              @db.VarChar(500)
+  tbl_pasajeros                                                           Pasajero?            @relation(fields: [id_cliente], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_encomienda_cliente")
+  tbl_notas_venta                                                         tbl_notas_venta?     @relation(fields: [id_nota_venta], references: [id], onUpdate: NoAction, map: "fk_encomiendas_nota_venta")
+  tbl_comprobantes                                                        tbl_comprobantes?    @relation(fields: [id_comprobante], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tbl_guias_remision_tbl_encomiendas_id_guia_remisionTotbl_guias_remision tbl_guias_remision?  @relation("tbl_encomiendas_id_guia_remisionTotbl_guias_remision", fields: [id_guia_remision], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  puntoDestino                                                            Punto                @relation("EncomiendaDestino", fields: [idPuntoDestino], references: [id])
+  puntoOrigen                                                             Punto                @relation("EncomiendaOrigen", fields: [idPuntoOrigen], references: [id])
+  usuarioCreacion                                                         Usuario              @relation(fields: [idUsuarioCreacion], references: [id])
+  eventos                                                                 EventoEncomienda[]
+  tbl_guias_remision_tbl_guias_remision_id_encomiendaTotbl_encomiendas    tbl_guias_remision[] @relation("tbl_guias_remision_id_encomiendaTotbl_encomiendas")
+
+  @@index([id_cliente], map: "idx_encomiendas_cliente")
+  @@map("tbl_encomiendas")
+}
+
+model EventoEncomienda {
+  id                   Int              @id @default(autoincrement())
+  idEncomienda         Int              @map("id_encomienda")
+  estadoDestino        EstadoEncomienda @map("estado_destino")
+  fechaEvento          DateTime         @default(now()) @map("fecha_evento") @db.Timestamptz(6)
+  idUsuarioEvento      Int              @map("id_usuario_evento")
+  idPuntoEvento        Int              @map("id_punto_evento")
+  nota                 String?          @db.VarChar(255)
+  dniRetiro            String?          @map("dni_retiro") @db.VarChar(20)
+  userIdRegistration   Int?             @map("user_id_registration")
+  dateTimeRegistration DateTime         @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification   Int?             @map("user_id_modification")
+  dateTimeModification DateTime?        @map("date_time_modification") @db.Timestamptz(6)
+  foto_evidencia_path  String?          @db.VarChar(500)
+  encomienda           Encomienda       @relation(fields: [idEncomienda], references: [id])
+  puntoEvento          Punto            @relation(fields: [idPuntoEvento], references: [id])
+  usuarioEvento        Usuario          @relation(fields: [idUsuarioEvento], references: [id])
+
+  @@map("tbl_eventos_encomienda")
+}
+
+model ArchivoMedia {
+  id                   Int              @id @default(autoincrement())
+  tipoEntidad          TipoEntidadMedia @map("tipo_entidad")
+  idEntidad            Int              @map("id_entidad")
+  tipoArchivo          TipoArchivo      @map("tipo_archivo")
+  urlStorage           String           @map("url_storage")
+  idUsuarioCreacion    Int              @map("id_usuario_creacion")
+  userIdRegistration   Int?             @map("user_id_registration")
+  dateTimeRegistration DateTime         @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification   Int?             @map("user_id_modification")
+  dateTimeModification DateTime?        @map("date_time_modification") @db.Timestamptz(6)
+  usuarioCreacion      Usuario          @relation(fields: [idUsuarioCreacion], references: [id])
+
+  @@map("tbl_archivos_media")
+}
+
+model LogAuditoria {
+  id             Int      @id @default(autoincrement())
+  idUsuarioActor Int?     @map("id_usuario_actor")
+  accion         String   @db.VarChar(100)
+  tipoEntidad    String   @map("tipo_entidad") @db.VarChar(50)
+  idEntidad      String   @map("id_entidad") @db.VarChar(50)
+  payloadJson    Json?    @map("payload_json")
+  fechaCreacion  DateTime @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
+  usuarioActor   Usuario? @relation(fields: [idUsuarioActor], references: [id])
+
+  @@map("tbl_log_auditoria")
+}
+
+model ConfiguracionPreciosEncomienda {
+  id                   Int       @id @default(autoincrement())
+  tarifaBase           Decimal   @map("tarifa_base") @db.Decimal(10, 2)
+  precioPorKg          Decimal   @map("precio_por_kg") @db.Decimal(10, 2)
+  precioPorCm3         Decimal   @map("precio_por_cm3") @db.Decimal(10, 4)
+  activo               Boolean   @default(true)
+  userIdRegistration   Int?      @map("user_id_registration")
+  dateTimeRegistration DateTime  @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification   Int?      @map("user_id_modification")
+  dateTimeModification DateTime? @map("date_time_modification") @db.Timestamptz(6)
+
+  @@map("tbl_configuracion_precios_encomienda")
+}
+
+model tbl_configuracion_sistema {
+  id                        Int       @id @default(autoincrement())
+  nombre_empresa            String    @default("Transportes Herminio") @db.VarChar(255)
+  ruc                       String?   @db.VarChar(11)
+  direccion                 String?   @db.VarChar(500)
+  telefono                  String?   @db.VarChar(50)
+  precio_base_pasaje        Decimal?  @default(25.00) @db.Decimal(10, 2)
+  precio_base_encomienda_kg Decimal?  @default(5.00) @db.Decimal(10, 2)
+  tiempo_reserva_minutos    Int?      @default(30)
+  capacidad_default_bus     Int?      @default(40)
+  activo                    Boolean?  @default(true)
+  user_id_registration      Int?
+  date_time_registration    DateTime? @default(now()) @db.Timestamptz(6)
+  user_id_modification      Int?
+  date_time_modification    DateTime? @db.Timestamptz(6)
+  soles_por_punto           Decimal?  @default(10.00) @db.Decimal(10, 2)
+  puntos_por_sol_descuento  Decimal?  @default(10.00) @db.Decimal(10, 2)
+  politicas_encomienda      String?
+  slogan                    String?   @default("Viaja seguro, envía confiado") @db.VarChar(200)
+  email_contacto            String?   @db.VarChar(100)
+  whatsapp                  String?   @db.VarChar(20)
+  facebook_url              String?   @db.VarChar(200)
+  instagram_url             String?   @db.VarChar(200)
+  youtube_url               String?   @db.VarChar(200)
+  tiempo_rotacion_banner    Int?      @default(5)
+}
+
+model tbl_comprobante_items {
+  id               Int              @id @default(autoincrement())
+  id_comprobante   Int
+  numero_item      Int
+  codigo           String?          @db.VarChar(50)
+  descripcion      String           @db.VarChar(500)
+  unidad_medida    String?          @default("ZZ") @db.VarChar(3)
+  cantidad         Decimal          @db.Decimal(12, 3)
+  valor_unitario   Decimal          @db.Decimal(12, 6)
+  precio_unitario  Decimal          @db.Decimal(12, 6)
+  subtotal         Decimal          @db.Decimal(12, 2)
+  igv              Decimal          @db.Decimal(12, 2)
+  total            Decimal          @db.Decimal(12, 2)
+  tipo_igv         String?          @default("10") @db.VarChar(2)
+  tbl_comprobantes tbl_comprobantes @relation(fields: [id_comprobante], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model tbl_comprobantes {
+  id                     Int                     @id @default(autoincrement())
+  tipo_comprobante       String                  @db.VarChar(2)
+  serie                  String                  @db.VarChar(4)
+  numero                 Int
+  numero_completo        String?                 @db.VarChar(15)
+  fecha_emision          DateTime                @default(dbgenerated("CURRENT_DATE")) @db.Date
+  hora_emision           DateTime                @default(dbgenerated("LOCALTIME")) @db.Time(6)
+  cliente_tipo_doc       String                  @db.VarChar(1)
+  cliente_num_doc        String                  @db.VarChar(15)
+  cliente_razon_social   String                  @db.VarChar(200)
+  cliente_direccion      String?                 @db.VarChar(300)
+  subtotal               Decimal                 @db.Decimal(12, 2)
+  igv                    Decimal                 @db.Decimal(12, 2)
+  total                  Decimal                 @db.Decimal(12, 2)
+  moneda                 String?                 @default("PEN") @db.VarChar(3)
+  origen_tipo            String?                 @db.VarChar(20)
+  origen_id              Int?
+  estado                 estado_comprobante?     @default(PENDIENTE)
+  keyfacil_id            String?                 @db.VarChar(100)
+  keyfacil_response      Json?
+  hash_cpe               String?                 @db.VarChar(100)
+  codigo_qr              String?
+  pdf_url                String?
+  xml_url                String?
+  cdr_url                String?
+  mensaje_error          String?
+  intentos_envio         Int?                    @default(0)
+  fecha_anulacion        DateTime?               @db.Timestamptz(6)
+  motivo_anulacion       String?
+  user_id_registration   Int?
+  date_time_registration DateTime?               @default(now()) @db.Timestamptz(6)
+  user_id_modification   Int?
+  date_time_modification DateTime?               @db.Timestamptz(6)
+  comentario             String?                 @db.VarChar(500)
+  tbl_comprobante_items  tbl_comprobante_items[]
+  tbl_encomiendas        Encomienda[]
+  tbl_log_keyfacil       tbl_log_keyfacil[]
+  tbl_tickets            Ticket[]
+
+  @@unique([tipo_comprobante, serie, numero])
+  @@index([cliente_num_doc], map: "idx_comprobantes_cliente")
+  @@index([estado], map: "idx_comprobantes_estado")
+  @@index([fecha_emision], map: "idx_comprobantes_fecha")
+  @@index([origen_tipo, origen_id], map: "idx_comprobantes_origen")
+  @@index([tipo_comprobante], map: "idx_comprobantes_tipo")
+}
+
+model tbl_configuracion_sunat {
+  id                     Int       @id @default(autoincrement())
+  ruc_emisor             String    @db.VarChar(11)
+  razon_social           String    @db.VarChar(200)
+  nombre_comercial       String?   @db.VarChar(200)
+  direccion_fiscal       String?   @db.VarChar(300)
+  ubigeo                 String?   @db.VarChar(6)
+  departamento           String?   @db.VarChar(100)
+  provincia              String?   @db.VarChar(100)
+  distrito               String?   @db.VarChar(100)
+  keyfacil_token         String
+  keyfacil_url           String?   @default("https://api.vitekey.com/keyfact/integra/v1") @db.VarChar(200)
+  modo_produccion        Boolean?  @default(false)
+  igv_porcentaje         Decimal?  @default(18.00) @db.Decimal(5, 2)
+  activo                 Boolean?  @default(true)
+  user_id_registration   Int?
+  date_time_registration DateTime? @default(now()) @db.Timestamptz(6)
+  user_id_modification   Int?
+  date_time_modification DateTime? @db.Timestamptz(6)
+}
+
+model tbl_guia_remision_items {
+  id                 Int                @id @default(autoincrement())
+  id_guia            Int
+  numero_item        Int
+  codigo             String?            @db.VarChar(50)
+  descripcion        String             @db.VarChar(500)
+  unidad_medida      String?            @default("ZZ") @db.VarChar(3)
+  cantidad           Decimal            @db.Decimal(12, 3)
+  peso               Decimal?           @db.Decimal(12, 3)
+  tbl_guias_remision tbl_guias_remision @relation(fields: [id_guia], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model tbl_guias_remision {
+  id                                                                   Int                       @id @default(autoincrement())
+  serie                                                                String                    @default("TZ74") @db.VarChar(4)
+  numero                                                               Int
+  numero_completo                                                      String?                   @db.VarChar(15)
+  fecha_emision                                                        DateTime                  @default(dbgenerated("CURRENT_DATE")) @db.Date
+  fecha_inicio_traslado                                                DateTime                  @db.Date
+  motivo_traslado                                                      String                    @default("01") @db.VarChar(2)
+  descripcion_motivo                                                   String?                   @db.VarChar(200)
+  modalidad_traslado                                                   String                    @default("01") @db.VarChar(2)
+  peso_bruto_total                                                     Decimal                   @db.Decimal(12, 3)
+  unidad_peso                                                          String?                   @default("KGM") @db.VarChar(3)
+  numero_bultos                                                        Int?                      @default(1)
+  ubigeo_partida                                                       String                    @db.VarChar(6)
+  direccion_partida                                                    String                    @db.VarChar(300)
+  ubigeo_llegada                                                       String                    @db.VarChar(6)
+  direccion_llegada                                                    String                    @db.VarChar(300)
+  destinatario_tipo_doc                                                String                    @db.VarChar(1)
+  destinatario_num_doc                                                 String                    @db.VarChar(15)
+  destinatario_razon_social                                            String                    @db.VarChar(200)
+  transportista_ruc                                                    String?                   @db.VarChar(11)
+  transportista_razon_social                                           String?                   @db.VarChar(200)
+  conductor_tipo_doc                                                   String?                   @db.VarChar(1)
+  conductor_num_doc                                                    String?                   @db.VarChar(15)
+  conductor_nombres                                                    String?                   @db.VarChar(200)
+  conductor_apellidos                                                  String?                   @db.VarChar(200)
+  conductor_licencia                                                   String?                   @db.VarChar(20)
+  vehiculo_placa                                                       String?                   @db.VarChar(10)
+  id_encomienda                                                        Int?
+  estado                                                               estado_guia_remision?     @default(PENDIENTE)
+  keyfacil_id                                                          String?                   @db.VarChar(100)
+  keyfacil_response                                                    Json?
+  pdf_url                                                              String?
+  mensaje_error                                                        String?
+  fecha_anulacion                                                      DateTime?                 @db.Timestamptz(6)
+  motivo_anulacion                                                     String?
+  user_id_registration                                                 Int?
+  date_time_registration                                               DateTime?                 @default(now()) @db.Timestamptz(6)
+  user_id_modification                                                 Int?
+  date_time_modification                                               DateTime?                 @db.Timestamptz(6)
+  transporte_tipo                                                      String?                   @default("01") @db.VarChar(2)
+  tbl_encomiendas_tbl_encomiendas_id_guia_remisionTotbl_guias_remision Encomienda[]              @relation("tbl_encomiendas_id_guia_remisionTotbl_guias_remision")
+  tbl_guia_remision_items                                              tbl_guia_remision_items[]
+  tbl_encomiendas_tbl_guias_remision_id_encomiendaTotbl_encomiendas    Encomienda?               @relation("tbl_guias_remision_id_encomiendaTotbl_encomiendas", fields: [id_encomienda], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([serie, numero])
+  @@index([id_encomienda], map: "idx_guias_encomienda")
+  @@index([estado], map: "idx_guias_estado")
+  @@index([fecha_emision], map: "idx_guias_fecha")
+}
+
+model tbl_log_keyfacil {
+  id                  Int               @id @default(autoincrement())
+  fecha_hora          DateTime?         @default(now()) @db.Timestamptz(6)
+  endpoint            String?           @db.VarChar(200)
+  metodo              String?           @db.VarChar(10)
+  request_body        Json?
+  response_status     Int?
+  response_body       Json?
+  tiempo_respuesta_ms Int?
+  id_comprobante      Int?
+  id_guia             Int?
+  tbl_comprobantes    tbl_comprobantes? @relation(fields: [id_comprobante], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model tbl_series_factura {
+  id               Int      @id @default(autoincrement())
+  tipo_comprobante String   @db.VarChar(2)
+  serie            String   @db.VarChar(4)
+  numero_actual    Int?     @default(0)
+  activo           Boolean? @default(true)
+
+  @@unique([tipo_comprobante, serie])
+}
+
+model tbl_notas_venta {
+  id                     Int          @id @default(autoincrement())
+  serie                  String       @db.VarChar(4)
+  numero                 Int
+  numero_completo        String?      @default(dbgenerated("(((serie)::text || '-'::text) || lpad((numero)::text, 8, '0'::text))")) @db.VarChar(15)
+  fecha_emision          DateTime     @default(now()) @db.Timestamptz(6)
+  cliente_nombre         String       @db.VarChar(200)
+  cliente_documento      String       @db.VarChar(20)
+  descripcion            String       @db.VarChar(500)
+  total                  Decimal      @db.Decimal(12, 2)
+  origen_tipo            String       @db.VarChar(20)
+  origen_id              Int
+  estado                 Int          @default(1)
+  user_id_registration   Int?
+  date_time_registration DateTime?    @default(now()) @db.Timestamptz(6)
+  user_id_modification   Int?
+  date_time_modification DateTime?    @db.Timestamptz(6)
+  comentario             String?      @db.VarChar(500)
+  tbl_encomiendas        Encomienda[]
+  tbl_tickets            Ticket[]
+
+  @@unique([serie, numero], map: "uq_notas_venta_serie_numero")
+  @@index([fecha_emision], map: "idx_notas_venta_fecha")
+  @@index([origen_tipo, origen_id], map: "idx_notas_venta_origen")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model tbl_cache_consulta_doc {
+  id               Int       @id @default(autoincrement())
+  tipo_documento   String    @db.VarChar(3)
+  numero_documento String    @db.VarChar(15)
+  datos_respuesta  Json
+  fecha_consulta   DateTime? @default(now()) @db.Timestamptz(6)
+  fecha_expiracion DateTime  @db.Timestamptz(6)
+  consultas_count  Int?      @default(1)
+
+  @@unique([tipo_documento, numero_documento], map: "uq_cache_tipo_numero")
+  @@index([fecha_expiracion], map: "idx_cache_doc_expiracion")
+  @@index([tipo_documento, numero_documento], map: "idx_cache_doc_lookup")
+}
+
+model tbl_landing_banners {
+  id                   Int       @id @default(autoincrement())
+  titulo               String?   @db.VarChar(200)
+  subtitulo            String?   @db.VarChar(300)
+  imagen_path          String    @db.VarChar(500)
+  url_destino          String?   @db.VarChar(500)
+  orden                Int?      @default(0)
+  activo               Boolean?  @default(true)
+  fecha_inicio         DateTime? @db.Date
+  fecha_fin            DateTime? @db.Date
+  created_at           DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime? @default(now()) @db.Timestamptz(6)
+  user_id_registration Int?
+  tipo                 String?   @default("banner") @db.VarChar(20)
+  tbl_usuarios         Usuario?  @relation(fields: [user_id_registration], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([orden, activo], map: "idx_landing_banners_orden")
+  @@index([tipo, activo, orden], map: "idx_landing_banners_tipo")
+}
+
+model tbl_configuracion_tipos_paquete {
+  id                     Int       @id @default(autoincrement())
+  tipo_paquete           String    @db.VarChar(50)
+  talla                  String?   @db.VarChar(30)
+  nombre_display         String    @db.VarChar(100)
+  alto_default           Decimal   @default(0) @db.Decimal(10, 2)
+  ancho_default          Decimal   @default(0) @db.Decimal(10, 2)
+  largo_default          Decimal   @default(0) @db.Decimal(10, 2)
+  activo                 Boolean?  @default(true)
+  orden                  Int?      @default(0)
+  user_id_registration   Int?
+  date_time_registration DateTime? @default(now()) @db.Timestamptz(6)
+  user_id_modification   Int?
+  date_time_modification DateTime? @db.Timestamptz(6)
+
+  @@unique([tipo_paquete, talla])
+  @@index([activo, orden], map: "idx_config_tipos_paquete_activo")
+}
+
+enum TipoPunto {
+  AGENCIA
+  TERMINAL
+
+  @@map("tipo_punto")
+}
+
+enum EstadoViaje {
+  ABIERTO
+  CERRADO
+  CANCELADO
+
+  @@map("estado_viaje")
+}
+
+enum MetodoPago {
+  EFECTIVO
+  YAPE
+  TARJETA
+
+  @@map("metodo_pago")
+}
+
+enum EstadoTicket {
+  EMITIDO
+  ANULADO
+
+  @@map("estado_ticket")
+}
+
+enum EstadoEncomienda {
+  REGISTRADO
+  EN_ALMACEN
+  EN_RUTA
+  LLEGO_A_DESTINO
+  RETIRADO
+
+  @@map("estado_encomienda")
+}
+
+enum TipoPermiso {
+  MENU
+  ACCION
+  RECURSO
+
+  @@map("tipo_permiso")
+}
+
+enum TipoEntidadMedia {
+  SHIPMENT_EVENT
+  SHIPMENT
+
+  @@map("tipo_entidad_media")
+}
+
+enum TipoArchivo {
+  FOTO_DNI_RETIRO
+
+  @@map("tipo_archivo")
+}
+
+enum EstadoFacturacion {
+  PENDIENTE
+  EMITIDO
+  ERROR
+
+  @@map("estado_facturacion")
+}
+
+enum estado_comprobante {
+  PENDIENTE
+  ENVIADO
+  ACEPTADO
+  RECHAZADO
+  ANULADO
+}
+
+enum estado_guia_remision {
+  PENDIENTE
+  ENVIADA
+  ACEPTADA
+  RECHAZADA
+  ANULADA
+}

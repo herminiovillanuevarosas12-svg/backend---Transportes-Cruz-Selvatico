@@ -1,0 +1,52 @@
+{
+  "name": "transporte-backend",
+  "version": "1.0.0",
+  "description": "Backend del Sistema de Transporte - Venta de Pasajes y Encomiendas",
+  "main": "index.js",
+  "scripts": {
+    "//": "=== OTROS ===",
+    "dev:local": "node -r dotenv/config index.js dotenv_config_path=.env.local",
+    "dev:local:watch": "nodemon -r dotenv/config index.js dotenv_config_path=.env.local",
+    "dev": "nodemon index.js",
+    "start": "prisma generate && node index.js",
+    "build": "prisma generate",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:local": "dotenv -e .env.local -- prisma migrate dev",
+    "prisma:push": "prisma db push",
+    "prisma:push:local": "dotenv -e .env.local -- prisma db push",
+    "prisma:studio": "prisma studio",
+    "prisma:studio:local": "dotenv -e .env.local -- prisma studio",
+    "seed": "node prisma/seed.js",
+    "seed:local": "node -r dotenv/config prisma/seed.js dotenv_config_path=.env.local",
+    "test": "jest",
+    "backup": "node scripts/backup-database.js",
+    "backup:local": "node -r dotenv/config scripts/backup-database.js dotenv_config_path=.env.local"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.978.0",
+    "@aws-sdk/lib-storage": "^3.978.0",
+    "@prisma/client": "^5.10.0",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "dotenv-cli": "^7.3.0",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^2.0.2",
+    "pg": "^8.11.3",
+    "prisma": "^5.10.0",
+    "qrcode": "^1.5.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
