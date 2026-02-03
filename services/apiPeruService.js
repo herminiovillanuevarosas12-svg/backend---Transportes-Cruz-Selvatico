@@ -97,9 +97,6 @@ const makeRequest = async (endpoint, body) => {
   const url = `${APIPERU_BASE_URL}${endpoint}`;
   const token = getToken();
 
-  console.log(`[API Peru] Consultando ${endpoint}:`, body);
-  console.log(`[API Peru] Token (primeros 20 chars): ${token.substring(0, 20)}...`);
-
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -110,9 +107,6 @@ const makeRequest = async (endpoint, body) => {
       },
       body: JSON.stringify(body)
     });
-
-    console.log(`[API Peru] Response status: ${response.status}`);
-    console.log(`[API Peru] Content-Type: ${response.headers.get('content-type')}`);
 
     // Leer respuesta como texto primero para diagnosticar
     const responseText = await response.text();
@@ -134,8 +128,7 @@ const makeRequest = async (endpoint, body) => {
     try {
       responseData = JSON.parse(responseText);
     } catch (parseError) {
-      console.error(`[API Peru] Error parseando JSON:`, parseError);
-      console.error(`[API Peru] Respuesta raw: ${responseText.substring(0, 500)}`);
+      console.error('[API Peru] Error parseando respuesta JSON');
       return {
         success: false,
         status: response.status,
@@ -143,8 +136,6 @@ const makeRequest = async (endpoint, body) => {
         message: 'Respuesta inválida de API Peru'
       };
     }
-
-    console.log(`[API Peru] Respuesta exitosa:`, responseData.success);
 
     return {
       success: response.ok && responseData.success,

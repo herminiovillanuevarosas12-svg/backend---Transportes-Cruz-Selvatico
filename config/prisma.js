@@ -40,11 +40,4 @@ const prisma = new PrismaClient({
   log: logConfig
 });
 
-// =============================================================================
-// LOGGING DE CONEXION (solo en desarrollo)
-// =============================================================================
-if (isDevelopment) {
-  console.log('[Prisma] *** DESARROLLO LOCAL - Conectando a transporte_db ***');
-}
-
 module.exports = prisma;

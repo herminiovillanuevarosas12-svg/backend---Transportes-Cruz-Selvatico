@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS "tbl_notas_venta" (
     "id" SERIAL NOT NULL,
     "serie" VARCHAR(4) NOT NULL,
     "numero" INTEGER NOT NULL,
-    "numero_completo" VARCHAR(15) DEFAULT (serie || '-' || lpad(numero::text, 8, '0')),
+    "numero_completo" VARCHAR(15),
     "fecha_emision" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "cliente_nombre" VARCHAR(200) NOT NULL,
     "cliente_documento" VARCHAR(20) NOT NULL,
@@ -46,6 +46,21 @@ CREATE TABLE IF NOT EXISTS "tbl_notas_venta" (
 CREATE UNIQUE INDEX IF NOT EXISTS "uq_notas_venta_serie_numero" ON "tbl_notas_venta"("serie", "numero");
 CREATE INDEX IF NOT EXISTS "idx_notas_venta_fecha" ON "tbl_notas_venta"("fecha_emision");
 CREATE INDEX IF NOT EXISTS "idx_notas_venta_origen" ON "tbl_notas_venta"("origen_tipo", "origen_id");
+
+-- Trigger para calcular numero_completo automaticamente
+CREATE OR REPLACE FUNCTION calcular_numero_completo_nota_venta()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.numero_completo := NEW.serie || '-' || lpad(NEW.numero::text, 8, '0');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_calcular_numero_completo ON "tbl_notas_venta";
+CREATE TRIGGER trg_calcular_numero_completo
+    BEFORE INSERT OR UPDATE ON "tbl_notas_venta"
+    FOR EACH ROW
+    EXECUTE FUNCTION calcular_numero_completo_nota_venta();
 
 -- ============================================
 -- 3. CREAR TABLA tbl_cache_consulta_doc

@@ -138,11 +138,6 @@ app.listen(PORT, () => {
   ╚═══════════════════════════════════════════════════════════════╝
   `);
 
-  // Mensaje adicional para desarrollo local
-  if (isDevelopment) {
-    console.log('  *** DESARROLLO LOCAL - Base de datos: transporte_db ***');
-    console.log('  *** Los cambios aqui NO afectan Railway ***\n');
-  }
 });
 
 module.exports = app;

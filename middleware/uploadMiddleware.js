@@ -45,19 +45,16 @@ const uploadFotoEntrega = multer({
 const procesarFotoEntrega = async (file, encomiendaId) => {
   if (s3Service.isConfigured()) {
     // Produccion: subir a S3
-    console.log('[S3] Subiendo foto de entrega a Wasabi...');
     const result = await s3Service.uploadMulterFile(
       file,
       ENTREGA_FOLDER,
       'enc',
       encomiendaId
     );
-    console.log('[S3] Foto subida:', result.key);
     // Retornar solo la key (ruta relativa) para compatibilidad con el frontend
     return result.key;
   } else {
     // Desarrollo: guardar en disco
-    console.log('[LOCAL] Guardando foto de entrega en disco...');
     const uploadPath = path.join(UPLOADS_BASE, ENTREGA_FOLDER);
 
     if (!fs.existsSync(uploadPath)) {
@@ -71,7 +68,6 @@ const procesarFotoEntrega = async (file, encomiendaId) => {
     const filepath = path.join(uploadPath, filename);
 
     fs.writeFileSync(filepath, file.buffer);
-    console.log('[LOCAL] Foto guardada:', `${ENTREGA_FOLDER}/${filename}`);
 
     return `${ENTREGA_FOLDER}/${filename}`;
   }
@@ -86,19 +82,16 @@ const procesarFotoEntrega = async (file, encomiendaId) => {
 const guardarImagenBase64 = async (base64Data, encomiendaId) => {
   if (s3Service.isConfigured()) {
     // Produccion: subir a S3
-    console.log('[S3] Subiendo imagen base64 a Wasabi...');
     const result = await s3Service.uploadBase64(
       base64Data,
       ENTREGA_FOLDER,
       'enc',
       encomiendaId
     );
-    console.log('[S3] Imagen subida:', result.key);
     // Retornar solo la key (ruta relativa) para compatibilidad con el frontend
     return result.key;
   } else {
     // Desarrollo: guardar en disco
-    console.log('[LOCAL] Guardando imagen base64 en disco...');
     const uploadPath = path.join(UPLOADS_BASE, ENTREGA_FOLDER);
 
     if (!fs.existsSync(uploadPath)) {
@@ -120,7 +113,6 @@ const guardarImagenBase64 = async (base64Data, encomiendaId) => {
 
     const buffer = Buffer.from(imageData, 'base64');
     fs.writeFileSync(filepath, buffer);
-    console.log('[LOCAL] Imagen guardada:', `${ENTREGA_FOLDER}/${filename}`);
 
     return `${ENTREGA_FOLDER}/${filename}`;
   }
@@ -145,10 +137,9 @@ const eliminarFotoEntrega = async (urlOrPath) => {
     if (fs.existsSync(fullPath)) {
       try {
         fs.unlinkSync(fullPath);
-        console.log('Archivo local eliminado:', urlOrPath);
         return true;
       } catch (error) {
-        console.error('Error eliminando archivo local:', error);
+        console.error('Error eliminando archivo local:', error.message);
         return false;
       }
     }

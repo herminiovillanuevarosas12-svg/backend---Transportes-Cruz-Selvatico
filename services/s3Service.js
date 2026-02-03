@@ -21,14 +21,9 @@ const s3Client = new S3Client({
 const UPLOADS_BUCKET = process.env.WASABI_UPLOADS_BUCKET || 'transporte-herminio-uploads';
 const BACKUPS_BUCKET = process.env.WASABI_BACKUPS_BUCKET || 'transporte-herminio-backups';
 
-// Log de configuracion al iniciar
+// Verificar credenciales al iniciar
 if (!process.env.WASABI_ACCESS_KEY_ID || !process.env.WASABI_SECRET_ACCESS_KEY) {
   console.warn('[S3] ADVERTENCIA: Credenciales de Wasabi no configuradas. Los uploads iran a disco local.');
-} else {
-  console.log('[S3] Servicio Wasabi S3 configurado correctamente');
-  console.log('[S3] Endpoint:', process.env.WASABI_ENDPOINT || 'https://s3.us-east-1.wasabisys.com');
-  console.log('[S3] Bucket uploads:', UPLOADS_BUCKET);
-  console.log('[S3] Bucket backups:', BACKUPS_BUCKET);
 }
 
 /**
@@ -41,9 +36,6 @@ if (!process.env.WASABI_ACCESS_KEY_ID || !process.env.WASABI_SECRET_ACCESS_KEY) 
  */
 const uploadFile = async (buffer, key, contentType, bucket = UPLOADS_BUCKET) => {
   try {
-    console.log(`[S3] Iniciando upload: ${key} al bucket ${bucket}`);
-    console.log(`[S3] Tamaño: ${(buffer.length / 1024).toFixed(2)} KB, Tipo: ${contentType}`);
-
     const upload = new Upload({
       client: s3Client,
       params: {
@@ -59,7 +51,6 @@ const uploadFile = async (buffer, key, contentType, bucket = UPLOADS_BUCKET) => 
     await upload.done();
 
     const url = getPublicUrl(key, bucket);
-    console.log(`[S3] Upload exitoso: ${url}`);
 
     return {
       key,
@@ -135,14 +126,12 @@ const deleteFile = async (key, bucket = UPLOADS_BUCKET) => {
   if (!key) return false;
 
   try {
-    console.log(`[S3] Eliminando archivo: ${key}`);
     const command = new DeleteObjectCommand({
       Bucket: bucket,
       Key: key
     });
 
     await s3Client.send(command);
-    console.log('[S3] Archivo eliminado exitosamente:', key);
     return true;
   } catch (error) {
     console.error('[S3] Error eliminando archivo:', error.message);

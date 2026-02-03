@@ -42,13 +42,7 @@ const pool = new Pool({
 
 // Conexion exitosa
 pool.on('connect', () => {
-  const entorno = isProduction ? 'PRODUCCION (Railway)' : 'DESARROLLO LOCAL';
-  console.log(`[DB] Conectado a PostgreSQL - Entorno: ${entorno}`);
-
-  // En desarrollo, mostrar informacion adicional para debugging
-  if (isLocal) {
-    console.log('[DB] *** DESARROLLO LOCAL - Base de datos: transporte_db ***');
-  }
+  // Conexión establecida silenciosamente
 });
 
 // Error en el pool

@@ -93,12 +93,10 @@ const s3ProxyMiddleware = async (req, res, next) => {
 
   if (!s3Client) {
     // S3 no configurado y archivo no existe localmente
-    console.log(`[Uploads] Archivo no encontrado (local): ${filePath}`);
     return res.status(404).json({ error: 'Archivo no encontrado' });
   }
 
   try {
-    console.log(`[S3 Proxy] Obteniendo de S3: ${filePath}`);
 
     const command = new GetObjectCommand({
       Bucket: UPLOADS_BUCKET,
@@ -125,11 +123,10 @@ const s3ProxyMiddleware = async (req, res, next) => {
 
   } catch (error) {
     if (error.name === 'NoSuchKey' || error.$metadata?.httpStatusCode === 404) {
-      console.log(`[S3 Proxy] Archivo no encontrado en S3: ${filePath}`);
       return res.status(404).json({ error: 'Archivo no encontrado' });
     }
 
-    console.error(`[S3 Proxy] Error obteniendo archivo ${filePath}:`, error.message);
+    console.error('[S3 Proxy] Error obteniendo archivo:', error.message);
     return res.status(500).json({ error: 'Error al obtener archivo' });
   }
 };

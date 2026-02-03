@@ -187,7 +187,7 @@ async function main() {
   // ==========================================================================
   console.log('\n[4/7] Creando usuario Super Admin...');
 
-  const passwordHash = await bcrypt.hash('Admin123!', 10);
+  const passwordHash = await bcrypt.hash('123456', 10);
 
   await prisma.usuario.upsert({
     where: { correo: 'admin@transporte.com' },
@@ -297,7 +297,7 @@ Recibido sin verificacion de contenido.`,
   console.log('='.repeat(60));
   console.log('\nCREDENCIALES DE ACCESO:');
   console.log('  Email:    admin@transporte.com');
-  console.log('  Password: Admin123!');
+  console.log('  Password: 123456');
   console.log('\nCONFIGURACION KEYFACIL:');
   console.log('  RUC:      20600812727');
   console.log('  Token:    71482384-59a4-48ab-b804-306ed7ac070b');

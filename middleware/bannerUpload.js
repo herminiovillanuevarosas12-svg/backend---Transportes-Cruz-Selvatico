@@ -47,14 +47,11 @@ const procesarBannerFile = async (file, tipo = 'banner') => {
 
   if (s3Service.isConfigured()) {
     // Produccion: subir a S3
-    console.log(`[S3] Subiendo ${tipo} a Wasabi...`);
     const result = await s3Service.uploadMulterFile(file, folder, prefix);
-    console.log('[S3] Archivo subido:', result.key);
     // Retornar solo la key (ruta relativa) para compatibilidad con el frontend
     return result.key;
   } else {
     // Desarrollo: guardar en disco
-    console.log(`[LOCAL] Guardando ${tipo} en disco...`);
     const uploadPath = path.join(UPLOADS_BASE, folder);
 
     if (!fs.existsSync(uploadPath)) {
@@ -68,7 +65,6 @@ const procesarBannerFile = async (file, tipo = 'banner') => {
     const filepath = path.join(uploadPath, filename);
 
     fs.writeFileSync(filepath, file.buffer);
-    console.log('[LOCAL] Archivo guardado:', `${folder}/${filename}`);
 
     return `${folder}/${filename}`;
   }
@@ -94,10 +90,9 @@ const eliminarArchivoBanner = async (urlOrPath) => {
     if (fs.existsSync(fullPath)) {
       try {
         fs.unlinkSync(fullPath);
-        console.log('Archivo eliminado:', urlOrPath);
         return true;
       } catch (error) {
-        console.error('Error eliminando archivo:', error);
+        console.error('Error eliminando archivo:', error.message);
         return false;
       }
     }
@@ -117,14 +112,11 @@ const guardarBannerBase64 = async (base64Data, tipo = 'banner') => {
 
   if (s3Service.isConfigured()) {
     // Produccion: subir a S3
-    console.log(`[S3] Subiendo ${tipo} base64 a Wasabi...`);
     const result = await s3Service.uploadBase64(base64Data, folder, prefix);
-    console.log('[S3] Archivo subido:', result.key);
     // Retornar solo la key (ruta relativa) para compatibilidad con el frontend
     return result.key;
   } else {
     // Desarrollo: guardar en disco
-    console.log(`[LOCAL] Guardando ${tipo} base64 en disco...`);
     const uploadPath = path.join(UPLOADS_BASE, folder);
 
     if (!fs.existsSync(uploadPath)) {
@@ -146,7 +138,6 @@ const guardarBannerBase64 = async (base64Data, tipo = 'banner') => {
 
     const buffer = Buffer.from(imageData, 'base64');
     fs.writeFileSync(filepath, buffer);
-    console.log('[LOCAL] Archivo guardado:', `${folder}/${filename}`);
 
     return `${folder}/${filename}`;
   }
