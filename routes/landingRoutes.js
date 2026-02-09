@@ -71,4 +71,19 @@ router.put(
   landingController.actualizarConfigLanding
 );
 
+// PUT /api/landing/config/imagen-experiencia - Subir/actualizar imagen de experiencia
+router.put(
+  '/config/imagen-experiencia',
+  requirePermission('LANDING_EDITAR'),
+  uploadBanner.single('imagen'),
+  landingController.subirImagenExperiencia
+);
+
+// DELETE /api/landing/config/imagen-experiencia - Eliminar imagen de experiencia
+router.delete(
+  '/config/imagen-experiencia',
+  requirePermission('LANDING_EDITAR'),
+  landingController.eliminarImagenExperiencia
+);
+
 module.exports = router;

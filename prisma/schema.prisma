@@ -221,7 +221,7 @@ model Ticket {
   id_comprobante       Int?
   id_nota_venta        Int?
   comentario           String?           @db.VarChar(500)
-  tbl_notas_venta      tbl_notas_venta?  @relation(fields: [id_nota_venta], references: [id], onUpdate: NoAction, map: "fk_tickets_nota_venta")
+  tbl_notas_venta      tbl_notas_venta?  @relation(fields: [id_nota_venta], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tickets_nota_venta")
   tbl_comprobantes     tbl_comprobantes? @relation(fields: [id_comprobante], references: [id], onDelete: NoAction, onUpdate: NoAction)
   pasajero             Pasajero          @relation(fields: [idPasajero], references: [id])
   usuarioAnulacion     Usuario?          @relation("TicketAnulador", fields: [idUsuarioAnulacion], references: [id])
@@ -265,13 +265,13 @@ model Encomienda {
   id_guia_remision                                                        Int?
   id_nota_venta                                                           Int?
   destinatario_dni                                                        String?              @db.VarChar(20)
-  pago_al_recojo                                                          Boolean              @default(false)
+  pago_al_recojo                                                          Boolean?             @default(false)
   clave_seguridad                                                         String?              @db.VarChar(4)
   tipo_comprobante_pendiente                                              String?              @db.VarChar(15)
   datos_factura_pendiente                                                 Json?
   comentario                                                              String?              @db.VarChar(500)
   tbl_pasajeros                                                           Pasajero?            @relation(fields: [id_cliente], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_encomienda_cliente")
-  tbl_notas_venta                                                         tbl_notas_venta?     @relation(fields: [id_nota_venta], references: [id], onUpdate: NoAction, map: "fk_encomiendas_nota_venta")
+  tbl_notas_venta                                                         tbl_notas_venta?     @relation(fields: [id_nota_venta], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_encomiendas_nota_venta")
   tbl_comprobantes                                                        tbl_comprobantes?    @relation(fields: [id_comprobante], references: [id], onDelete: NoAction, onUpdate: NoAction)
   tbl_guias_remision_tbl_encomiendas_id_guia_remisionTotbl_guias_remision tbl_guias_remision?  @relation("tbl_encomiendas_id_guia_remisionTotbl_guias_remision", fields: [id_guia_remision], references: [id], onDelete: NoAction, onUpdate: NoAction)
   puntoDestino                                                            Punto                @relation("EncomiendaDestino", fields: [idPuntoDestino], references: [id])
@@ -373,6 +373,7 @@ model tbl_configuracion_sistema {
   instagram_url             String?   @db.VarChar(200)
   youtube_url               String?   @db.VarChar(200)
   tiempo_rotacion_banner    Int?      @default(5)
+  imagen_experiencia        String?   @db.VarChar(500)
 }
 
 model tbl_comprobante_items {
@@ -552,7 +553,7 @@ model tbl_notas_venta {
   id                     Int          @id @default(autoincrement())
   serie                  String       @db.VarChar(4)
   numero                 Int
-  numero_completo        String?      @default(dbgenerated("(((serie)::text || '-'::text) || lpad((numero)::text, 8, '0'::text))")) @db.VarChar(15)
+  numero_completo        String?      @db.VarChar(15)
   fecha_emision          DateTime     @default(now()) @db.Timestamptz(6)
   cliente_nombre         String       @db.VarChar(200)
   cliente_documento      String       @db.VarChar(20)

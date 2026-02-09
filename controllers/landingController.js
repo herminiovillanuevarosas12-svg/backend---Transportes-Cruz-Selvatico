@@ -87,7 +87,8 @@ const getConfigLandingPublica = async (req, res) => {
         facebook_url as "facebookUrl",
         instagram_url as "instagramUrl",
         youtube_url as "youtubeUrl",
-        COALESCE(tiempo_rotacion_banner, 5) as "tiempoRotacionBanner"
+        COALESCE(tiempo_rotacion_banner, 5) as "tiempoRotacionBanner",
+        imagen_experiencia as "imagenExperiencia"
       FROM tbl_configuracion_sistema
       WHERE activo = true
       LIMIT 1
@@ -478,7 +479,8 @@ const getConfigLandingAdmin = async (req, res) => {
         facebook_url as "facebookUrl",
         instagram_url as "instagramUrl",
         youtube_url as "youtubeUrl",
-        COALESCE(tiempo_rotacion_banner, 5) as "tiempoRotacionBanner"
+        COALESCE(tiempo_rotacion_banner, 5) as "tiempoRotacionBanner",
+        imagen_experiencia as "imagenExperiencia"
       FROM tbl_configuracion_sistema
       WHERE activo = true
       LIMIT 1
@@ -508,6 +510,103 @@ const getConfigLandingAdmin = async (req, res) => {
   }
 };
 
+/**
+ * Subir/actualizar imagen de la sección Experiencia
+ * PUT /api/landing/config/imagen-experiencia
+ */
+const subirImagenExperiencia = async (req, res) => {
+  try {
+    let imagenPath = null;
+
+    if (req.file) {
+      imagenPath = await procesarBannerFile(req.file, 'banner');
+    } else if (req.body.imagenBase64) {
+      imagenPath = await guardarBannerBase64(req.body.imagenBase64, 'banner');
+    }
+
+    if (!imagenPath) {
+      return res.status(400).json({ error: 'Se requiere una imagen' });
+    }
+
+    // Obtener imagen anterior para eliminarla
+    const configActual = await prisma.$queryRaw`
+      SELECT imagen_experiencia as "imagenExperiencia"
+      FROM tbl_configuracion_sistema
+      WHERE activo = true
+      LIMIT 1
+    `;
+
+    if (configActual?.[0]?.imagenExperiencia) {
+      await eliminarArchivoBanner(configActual[0].imagenExperiencia);
+    }
+
+    // Actualizar campo
+    await prisma.$executeRaw`
+      UPDATE tbl_configuracion_sistema SET
+        imagen_experiencia = ${imagenPath},
+        date_time_modification = NOW(),
+        user_id_modification = ${req.user.id}
+      WHERE activo = true
+    `;
+
+    await registrarAuditoria(
+      req.user.id,
+      'IMAGEN_EXPERIENCIA_ACTUALIZADA',
+      'CONFIGURACION',
+      null,
+      { imagenPath }
+    );
+
+    res.json({
+      mensaje: 'Imagen de experiencia actualizada exitosamente',
+      imagenExperiencia: imagenPath
+    });
+  } catch (error) {
+    console.error('Error subiendo imagen de experiencia:', error);
+    res.status(500).json({ error: 'Error al subir imagen de experiencia' });
+  }
+};
+
+/**
+ * Eliminar imagen de la sección Experiencia
+ * DELETE /api/landing/config/imagen-experiencia
+ */
+const eliminarImagenExperiencia = async (req, res) => {
+  try {
+    const configActual = await prisma.$queryRaw`
+      SELECT imagen_experiencia as "imagenExperiencia"
+      FROM tbl_configuracion_sistema
+      WHERE activo = true
+      LIMIT 1
+    `;
+
+    if (configActual?.[0]?.imagenExperiencia) {
+      await eliminarArchivoBanner(configActual[0].imagenExperiencia);
+    }
+
+    await prisma.$executeRaw`
+      UPDATE tbl_configuracion_sistema SET
+        imagen_experiencia = NULL,
+        date_time_modification = NOW(),
+        user_id_modification = ${req.user.id}
+      WHERE activo = true
+    `;
+
+    await registrarAuditoria(
+      req.user.id,
+      'IMAGEN_EXPERIENCIA_ELIMINADA',
+      'CONFIGURACION',
+      null,
+      {}
+    );
+
+    res.json({ mensaje: 'Imagen de experiencia eliminada' });
+  } catch (error) {
+    console.error('Error eliminando imagen de experiencia:', error);
+    res.status(500).json({ error: 'Error al eliminar imagen de experiencia' });
+  }
+};
+
 module.exports = {
   // Públicos
   getBannersPublicos,
@@ -520,5 +619,7 @@ module.exports = {
   eliminarBanner,
   reordenarBanners,
   actualizarConfigLanding,
-  getConfigLandingAdmin
+  getConfigLandingAdmin,
+  subirImagenExperiencia,
+  eliminarImagenExperiencia
 };
