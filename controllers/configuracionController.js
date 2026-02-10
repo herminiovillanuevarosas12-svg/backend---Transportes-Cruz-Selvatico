@@ -285,11 +285,11 @@ const obtenerPreciosEncomienda = async (req, res) => {
  */
 const actualizarPreciosEncomienda = async (req, res) => {
   try {
-    const { tarifaBase, precioPorKg, precioPorCm3 } = req.body;
+    const { precioPorKg, precioPorCm3 } = req.body;
 
-    if (tarifaBase === undefined || precioPorKg === undefined || precioPorCm3 === undefined) {
+    if (precioPorKg === undefined || precioPorCm3 === undefined) {
       return res.status(400).json({
-        error: 'Tarifa base, precio por kg y precio por cm3 son requeridos'
+        error: 'Precio por kg y precio por cm3 son requeridos'
       });
     }
 
@@ -302,7 +302,7 @@ const actualizarPreciosEncomienda = async (req, res) => {
     // Crear nueva configuracion
     const config = await prisma.configuracionPreciosEncomienda.create({
       data: {
-        tarifaBase: parseFloat(tarifaBase),
+        tarifaBase: 0,
         precioPorKg: parseFloat(precioPorKg),
         precioPorCm3: parseFloat(precioPorCm3),
         activo: true,

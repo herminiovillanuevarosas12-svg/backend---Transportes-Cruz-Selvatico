@@ -25,6 +25,7 @@ const consultaDocRoutes = require('./consultaDocRoutes');
 const tiposCarroRoutes = require('./tiposCarroRoutes');
 const configTiposPaqueteRoutes = require('./configTiposPaqueteRoutes');
 const landingRoutes = require('./landingRoutes');
+const preciosBaseRoutes = require('./preciosBaseRoutes');
 
 // Montar rutas
 router.use('/auth', authRoutes);
@@ -45,6 +46,7 @@ router.use('/consulta-doc', consultaDocRoutes);
 router.use('/tipos-carro', tiposCarroRoutes);
 router.use('/config-tipos-paquete', configTiposPaqueteRoutes);
 router.use('/landing', landingRoutes);
+router.use('/precios-base-encomienda', preciosBaseRoutes);
 
 // Health check
 router.get('/health', (req, res) => {

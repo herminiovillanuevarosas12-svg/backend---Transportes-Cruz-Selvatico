@@ -151,7 +151,8 @@ const registrar = async (req, res) => {
       clienteFactura,
       pagoAlRecojo = false,
       claveSeguridad,
-      comentario
+      comentario,
+      idPrecioBase
     } = req.body;
 
     // Validaciones
@@ -234,19 +235,28 @@ const registrar = async (req, res) => {
       });
     }
 
+    if (!idPrecioBase) {
+      return res.status(400).json({
+        error: 'Debe seleccionar un precio base para el envio'
+      });
+    }
+
     // Calcular precio
-    const precioCalculado = await calcularPrecioEncomienda(
+    const resultadoCalculo = await calcularPrecioEncomienda(
       paquete.peso,
       paquete.alto,
       paquete.ancho,
-      paquete.largo
+      paquete.largo,
+      idPrecioBase
     );
 
-    if (precioCalculado === null) {
+    if (resultadoCalculo === null) {
       return res.status(400).json({
-        error: 'No hay configuracion de precios activa. Configure los precios primero.'
+        error: 'No hay configuracion de precios activa o el precio base seleccionado no existe.'
       });
     }
+
+    const precioCalculado = resultadoCalculo.precio;
 
     // Obtener configuracion de puntos
     const { solesPorPunto, puntosPorSolDescuento } = await obtenerConfiguracionPuntos();
@@ -354,6 +364,7 @@ const registrar = async (req, res) => {
           pago_al_recojo: pagoAlRecojo === true,
           clave_seguridad: claveSeguridad || null,
           comentario: comentario || null,
+          id_precio_base: parseInt(idPrecioBase),
           // El tipo de comprobante se selecciona al momento del retiro, no al registrar
           tipo_comprobante_pendiente: null,
           datos_factura_pendiente: null
