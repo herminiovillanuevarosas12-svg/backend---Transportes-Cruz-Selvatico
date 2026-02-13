@@ -67,6 +67,7 @@ model Punto {
   encomiendasDestino   Encomienda[]       @relation("EncomiendaDestino")
   encomiendasOrigen    Encomienda[]       @relation("EncomiendaOrigen")
   eventosEncomienda    EventoEncomienda[]
+  tbl_festividades     tbl_festividades[]
   rutasDestino         Ruta[]             @relation("RutaDestino")
   rutasOrigen          Ruta[]             @relation("RutaOrigen")
   usuarios             Usuario[]
@@ -641,6 +642,24 @@ model tbl_precios_base_encomienda {
   user_id_modification   Int?
   date_time_modification DateTime?    @db.Timestamptz(6)
   tbl_encomiendas        Encomienda[]
+}
+
+model tbl_festividades {
+  id                     Int       @id @default(autoincrement())
+  id_punto               Int
+  titulo                 String    @db.VarChar(200)
+  descripcion            String?
+  imagen_path            String?   @db.VarChar(500)
+  activo                 Boolean   @default(true)
+  orden                  Int?      @default(0)
+  user_id_registration   Int?
+  date_time_registration DateTime? @default(now()) @db.Timestamptz(6)
+  user_id_modification   Int?
+  date_time_modification DateTime? @db.Timestamptz(6)
+  tbl_puntos             Punto     @relation(fields: [id_punto], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([activo, orden], map: "idx_festividades_activo")
+  @@index([id_punto], map: "idx_festividades_punto")
 }
 
 enum TipoPunto {

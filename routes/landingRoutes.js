@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const landingController = require('../controllers/landingController');
+const festividadesController = require('../controllers/festividadesController');
 const { verifyToken, requirePermission } = require('../middleware/authMiddleware');
 const { uploadBanner } = require('../middleware/bannerUpload');
 
@@ -84,6 +85,47 @@ router.delete(
   '/config/imagen-experiencia',
   requirePermission('LANDING_EDITAR'),
   landingController.eliminarImagenExperiencia
+);
+
+/**
+ * FESTIVIDADES
+ */
+
+// GET /api/landing/festividades - Listar festividades (admin)
+router.get(
+  '/festividades',
+  requirePermission('LANDING_VER'),
+  festividadesController.listar
+);
+
+// POST /api/landing/festividades - Crear festividad
+router.post(
+  '/festividades',
+  requirePermission('LANDING_EDITAR'),
+  uploadBanner.single('imagen'),
+  festividadesController.crear
+);
+
+// PUT /api/landing/festividades/:id - Actualizar festividad
+router.put(
+  '/festividades/:id',
+  requirePermission('LANDING_EDITAR'),
+  uploadBanner.single('imagen'),
+  festividadesController.actualizar
+);
+
+// DELETE /api/landing/festividades/:id - Eliminar festividad
+router.delete(
+  '/festividades/:id',
+  requirePermission('LANDING_EDITAR'),
+  festividadesController.eliminar
+);
+
+// PATCH /api/landing/festividades/:id/toggle - Toggle activo
+router.patch(
+  '/festividades/:id/toggle',
+  requirePermission('LANDING_EDITAR'),
+  festividadesController.toggleActivo
 );
 
 module.exports = router;

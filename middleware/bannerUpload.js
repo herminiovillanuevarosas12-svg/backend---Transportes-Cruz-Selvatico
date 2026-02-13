@@ -13,6 +13,7 @@ const s3Service = require('../services/s3Service');
 const UPLOADS_BASE = path.join(__dirname, '..', 'uploads');
 const BANNERS_DIR = 'Fotos_banner';
 const GALLERY_DIR = 'Fotos_galería';
+const FESTIVIDADES_DIR = 'Fotos_festividades';
 
 // Filtro para solo permitir imágenes
 const imageFilter = (req, file, cb) => {
@@ -42,8 +43,8 @@ const uploadBanner = multer({
  * @returns {Promise<string>} - Ruta o URL del archivo
  */
 const procesarBannerFile = async (file, tipo = 'banner') => {
-  const folder = tipo === 'gallery' ? GALLERY_DIR : BANNERS_DIR;
-  const prefix = tipo === 'gallery' ? 'gallery' : 'banner';
+  const folder = tipo === 'gallery' ? GALLERY_DIR : tipo === 'festividad' ? FESTIVIDADES_DIR : BANNERS_DIR;
+  const prefix = tipo === 'gallery' ? 'gallery' : tipo === 'festividad' ? 'festividad' : 'banner';
 
   if (s3Service.isConfigured()) {
     // Produccion: subir a S3
@@ -107,8 +108,8 @@ const eliminarArchivoBanner = async (urlOrPath) => {
  * @returns {Promise<string>} - Ruta o URL del archivo
  */
 const guardarBannerBase64 = async (base64Data, tipo = 'banner') => {
-  const folder = tipo === 'gallery' ? GALLERY_DIR : BANNERS_DIR;
-  const prefix = tipo === 'gallery' ? 'gallery' : 'banner';
+  const folder = tipo === 'gallery' ? GALLERY_DIR : tipo === 'festividad' ? FESTIVIDADES_DIR : BANNERS_DIR;
+  const prefix = tipo === 'gallery' ? 'gallery' : tipo === 'festividad' ? 'festividad' : 'banner';
 
   if (s3Service.isConfigured()) {
     // Produccion: subir a S3
@@ -149,7 +150,9 @@ const guardarBannerBase64 = async (base64Data, tipo = 'banner') => {
  * @returns {string}
  */
 const getUploadDir = (tipo) => {
-  return tipo === 'gallery' ? GALLERY_DIR : BANNERS_DIR;
+  if (tipo === 'gallery') return GALLERY_DIR;
+  if (tipo === 'festividad') return FESTIVIDADES_DIR;
+  return BANNERS_DIR;
 };
 
 module.exports = {
@@ -159,5 +162,6 @@ module.exports = {
   guardarBannerBase64,
   getUploadDir,
   BANNERS_DIR,
-  GALLERY_DIR
+  GALLERY_DIR,
+  FESTIVIDADES_DIR
 };

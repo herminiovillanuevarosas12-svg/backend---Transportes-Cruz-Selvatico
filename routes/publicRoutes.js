@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const encomiendasController = require('../controllers/encomiendasController');
 const landingController = require('../controllers/landingController');
+const festividadesController = require('../controllers/festividadesController');
 const prisma = require('../config/prisma');
 const { formatTimeForAPI } = require('../utils/dateUtils');
 
@@ -21,6 +22,9 @@ router.get('/landing/gallery', landingController.getGaleriaPublica);
 
 // GET /api/public/landing/config - Obtener configuración de landing
 router.get('/landing/config', landingController.getConfigLandingPublica);
+
+// GET /api/public/festividades - Obtener festividades activas (público)
+router.get('/festividades', festividadesController.getFestividadesPublicas);
 
 /**
  * GET /api/public/rutas - Listar rutas con horarios y precios (publico)
