@@ -87,8 +87,14 @@ const getConfigLandingPublica = async (req, res) => {
         facebook_url as "facebookUrl",
         instagram_url as "instagramUrl",
         youtube_url as "youtubeUrl",
+        tiktok_url as "tiktokUrl",
         COALESCE(tiempo_rotacion_banner, 5) as "tiempoRotacionBanner",
-        imagen_experiencia as "imagenExperiencia"
+        imagen_experiencia as "imagenExperiencia",
+        experiencia_titulo as "experienciaTitulo",
+        experiencia_descripcion as "experienciaDescripcion",
+        experiencia_badge_numero as "experienciaBadgeNumero",
+        experiencia_badge_texto as "experienciaBadgeTexto",
+        experiencia_features as "experienciaFeatures"
       FROM tbl_configuracion_sistema
       WHERE activo = true
       LIMIT 1
@@ -431,7 +437,13 @@ const actualizarConfigLanding = async (req, res) => {
       facebookUrl,
       instagramUrl,
       youtubeUrl,
-      tiempoRotacionBanner
+      tiktokUrl,
+      tiempoRotacionBanner,
+      experienciaTitulo,
+      experienciaDescripcion,
+      experienciaBadgeNumero,
+      experienciaBadgeTexto,
+      experienciaFeatures
     } = req.body;
 
     // Actualizar campos de landing en configuración activa
@@ -443,7 +455,13 @@ const actualizarConfigLanding = async (req, res) => {
         facebook_url = ${facebookUrl || null},
         instagram_url = ${instagramUrl || null},
         youtube_url = ${youtubeUrl || null},
+        tiktok_url = ${tiktokUrl || null},
         tiempo_rotacion_banner = ${parseInt(tiempoRotacionBanner) || 5},
+        experiencia_titulo = ${experienciaTitulo || null},
+        experiencia_descripcion = ${experienciaDescripcion || null},
+        experiencia_badge_numero = ${experienciaBadgeNumero || null},
+        experiencia_badge_texto = ${experienciaBadgeTexto || null},
+        experiencia_features = ${experienciaFeatures || null},
         date_time_modification = NOW(),
         user_id_modification = ${req.user.id}
       WHERE activo = true
@@ -479,8 +497,14 @@ const getConfigLandingAdmin = async (req, res) => {
         facebook_url as "facebookUrl",
         instagram_url as "instagramUrl",
         youtube_url as "youtubeUrl",
+        tiktok_url as "tiktokUrl",
         COALESCE(tiempo_rotacion_banner, 5) as "tiempoRotacionBanner",
-        imagen_experiencia as "imagenExperiencia"
+        imagen_experiencia as "imagenExperiencia",
+        experiencia_titulo as "experienciaTitulo",
+        experiencia_descripcion as "experienciaDescripcion",
+        experiencia_badge_numero as "experienciaBadgeNumero",
+        experiencia_badge_texto as "experienciaBadgeTexto",
+        experiencia_features as "experienciaFeatures"
       FROM tbl_configuracion_sistema
       WHERE activo = true
       LIMIT 1
@@ -607,11 +631,129 @@ const eliminarImagenExperiencia = async (req, res) => {
   }
 };
 
+/**
+ * Obtener servicios landing (público)
+ * GET /api/public/landing/servicios
+ */
+const getServiciosPublicos = async (req, res) => {
+  try {
+    const servicios = await prisma.$queryRaw`
+      SELECT
+        id,
+        clave,
+        titulo,
+        descripcion,
+        features,
+        cta_texto as "ctaTexto",
+        cta_link as "ctaLink",
+        orden
+      FROM tbl_landing_servicios
+      WHERE activo = true
+      ORDER BY orden ASC, id ASC
+    `;
+
+    res.json({ servicios });
+  } catch (error) {
+    console.error('Error obteniendo servicios públicos:', error);
+    if (error.code === '42P01' || error.code === '42703') {
+      return res.json({ servicios: [] });
+    }
+    res.status(500).json({ error: 'Error al obtener servicios' });
+  }
+};
+
+/**
+ * Obtener servicios landing (admin)
+ * GET /api/landing/servicios
+ */
+const getServiciosAdmin = async (req, res) => {
+  try {
+    const servicios = await prisma.$queryRaw`
+      SELECT
+        id,
+        clave,
+        titulo,
+        descripcion,
+        features,
+        cta_texto as "ctaTexto",
+        cta_link as "ctaLink",
+        orden,
+        activo
+      FROM tbl_landing_servicios
+      ORDER BY orden ASC, id ASC
+    `;
+
+    res.json({ servicios });
+  } catch (error) {
+    console.error('Error obteniendo servicios admin:', error);
+    if (error.code === '42P01' || error.code === '42703') {
+      return res.json({ servicios: [] });
+    }
+    res.status(500).json({ error: 'Error al obtener servicios' });
+  }
+};
+
+/**
+ * Actualizar servicio landing
+ * PUT /api/landing/servicios/:id
+ */
+const actualizarServicio = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { titulo, descripcion, features, ctaTexto, ctaLink } = req.body;
+
+    if (!titulo || !descripcion || !features || !ctaTexto || !ctaLink) {
+      return res.status(400).json({ error: 'Todos los campos son requeridos' });
+    }
+
+    const result = await prisma.$queryRaw`
+      UPDATE tbl_landing_servicios SET
+        titulo = ${titulo},
+        descripcion = ${descripcion},
+        features = ${features},
+        cta_texto = ${ctaTexto},
+        cta_link = ${ctaLink}
+      WHERE id = ${parseInt(id)}
+      RETURNING
+        id,
+        clave,
+        titulo,
+        descripcion,
+        features,
+        cta_texto as "ctaTexto",
+        cta_link as "ctaLink",
+        orden,
+        activo
+    `;
+
+    if (!result || result.length === 0) {
+      return res.status(404).json({ error: 'Servicio no encontrado' });
+    }
+
+    await registrarAuditoria(
+      req.user.id,
+      'SERVICIO_LANDING_ACTUALIZADO',
+      'LANDING_SERVICIOS',
+      parseInt(id),
+      result[0]
+    );
+
+    res.json({
+      mensaje: 'Servicio actualizado exitosamente',
+      servicio: result[0]
+    });
+  } catch (error) {
+    console.error('Error actualizando servicio:', error);
+    res.status(500).json({ error: 'Error al actualizar servicio' });
+  }
+};
+
 module.exports = {
   // Públicos
   getBannersPublicos,
   getGaleriaPublica,
   getConfigLandingPublica,
+  getServiciosPublicos,
   // Admin
   listarBanners,
   crearBanner,
@@ -621,5 +763,7 @@ module.exports = {
   actualizarConfigLanding,
   getConfigLandingAdmin,
   subirImagenExperiencia,
-  eliminarImagenExperiencia
+  eliminarImagenExperiencia,
+  getServiciosAdmin,
+  actualizarServicio
 };

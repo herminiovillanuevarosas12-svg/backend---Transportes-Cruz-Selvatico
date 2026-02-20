@@ -1,11 +1,12 @@
 /**
  * Festividades Controller
  * CRUD de festividades por punto (agencia/terminal)
+ * Las imágenes se gestionan via festividadesImagenesController
  */
 
 const prisma = require('../config/prisma');
 const { registrarAuditoria } = require('../services/auditoriaService');
-const { eliminarArchivoBanner, guardarBannerBase64, procesarBannerFile } = require('../middleware/bannerUpload');
+const { eliminarArchivoBanner } = require('../middleware/bannerUpload');
 
 /**
  * Listar todas las festividades (admin)
@@ -19,7 +20,6 @@ const listar = async (req, res) => {
         f.id_punto as "idPunto",
         f.titulo,
         f.descripcion,
-        f.imagen_path as "imagenPath",
         f.activo,
         f.orden,
         f.date_time_registration as "createdAt",
@@ -30,7 +30,28 @@ const listar = async (req, res) => {
       ORDER BY f.orden ASC, f.id DESC
     `;
 
-    res.json({ festividades });
+    const imagenes = await prisma.$queryRaw`
+      SELECT
+        id,
+        id_festividad as "idFestividad",
+        imagen_path as "imagenPath",
+        orden
+      FROM tbl_festividades_imagenes
+      ORDER BY orden ASC, id ASC
+    `;
+
+    const imagenesMap = {};
+    for (const img of imagenes) {
+      if (!imagenesMap[img.idFestividad]) imagenesMap[img.idFestividad] = [];
+      imagenesMap[img.idFestividad].push(img);
+    }
+
+    const result = festividades.map(f => ({
+      ...f,
+      imagenes: imagenesMap[f.id] || []
+    }));
+
+    res.json({ festividades: result });
   } catch (error) {
     console.error('Error listando festividades:', error);
     if (error.code === '42P01') {
@@ -46,29 +67,20 @@ const listar = async (req, res) => {
  */
 const crear = async (req, res) => {
   try {
-    const { titulo, descripcion, idPunto, activo, orden, imagenBase64 } = req.body;
+    const { titulo, descripcion, idPunto, activo, orden } = req.body;
 
     if (!titulo || !idPunto) {
       return res.status(400).json({ error: 'Título y punto son requeridos' });
     }
 
-    let imagenPath = null;
-
-    if (req.file) {
-      imagenPath = await procesarBannerFile(req.file, 'festividad');
-    } else if (imagenBase64) {
-      imagenPath = await guardarBannerBase64(imagenBase64, 'festividad');
-    }
-
     const result = await prisma.$queryRaw`
       INSERT INTO tbl_festividades (
-        id_punto, titulo, descripcion, imagen_path,
+        id_punto, titulo, descripcion,
         activo, orden, user_id_registration, date_time_registration
       ) VALUES (
         ${parseInt(idPunto)},
         ${titulo},
         ${descripcion || null},
-        ${imagenPath},
         ${activo !== false},
         ${parseInt(orden) || 0},
         ${req.user.id},
@@ -79,7 +91,6 @@ const crear = async (req, res) => {
         id_punto as "idPunto",
         titulo,
         descripcion,
-        imagen_path as "imagenPath",
         activo,
         orden
     `;
@@ -94,7 +105,7 @@ const crear = async (req, res) => {
 
     res.status(201).json({
       mensaje: 'Festividad creada exitosamente',
-      festividad: result[0]
+      festividad: { ...result[0], imagenes: [] }
     });
   } catch (error) {
     console.error('Error creando festividad:', error);
@@ -109,24 +120,14 @@ const crear = async (req, res) => {
 const actualizar = async (req, res) => {
   try {
     const { id } = req.params;
-    const { titulo, descripcion, idPunto, activo, orden, imagenBase64 } = req.body;
+    const { titulo, descripcion, idPunto, activo, orden } = req.body;
 
     const actual = await prisma.$queryRaw`
-      SELECT imagen_path as "imagenPath" FROM tbl_festividades WHERE id = ${parseInt(id)}
+      SELECT id FROM tbl_festividades WHERE id = ${parseInt(id)}
     `;
 
     if (!actual || actual.length === 0) {
       return res.status(404).json({ error: 'Festividad no encontrada' });
-    }
-
-    let imagenPath = actual[0].imagenPath;
-
-    if (req.file) {
-      await eliminarArchivoBanner(actual[0].imagenPath);
-      imagenPath = await procesarBannerFile(req.file, 'festividad');
-    } else if (imagenBase64) {
-      await eliminarArchivoBanner(actual[0].imagenPath);
-      imagenPath = await guardarBannerBase64(imagenBase64, 'festividad');
     }
 
     const result = await prisma.$queryRaw`
@@ -134,7 +135,6 @@ const actualizar = async (req, res) => {
         titulo = ${titulo || null},
         descripcion = ${descripcion || null},
         id_punto = ${parseInt(idPunto)},
-        imagen_path = ${imagenPath},
         activo = ${activo !== false},
         orden = ${parseInt(orden) || 0},
         user_id_modification = ${req.user.id},
@@ -145,7 +145,6 @@ const actualizar = async (req, res) => {
         id_punto as "idPunto",
         titulo,
         descripcion,
-        imagen_path as "imagenPath",
         activo,
         orden
     `;
@@ -177,14 +176,21 @@ const eliminar = async (req, res) => {
     const { id } = req.params;
 
     const festividad = await prisma.$queryRaw`
-      SELECT imagen_path as "imagenPath" FROM tbl_festividades WHERE id = ${parseInt(id)}
+      SELECT id FROM tbl_festividades WHERE id = ${parseInt(id)}
     `;
 
     if (!festividad || festividad.length === 0) {
       return res.status(404).json({ error: 'Festividad no encontrada' });
     }
 
-    await eliminarArchivoBanner(festividad[0].imagenPath);
+    // Eliminar archivos de S3/local antes del CASCADE
+    const imagenes = await prisma.$queryRaw`
+      SELECT imagen_path as "imagenPath" FROM tbl_festividades_imagenes WHERE id_festividad = ${parseInt(id)}
+    `;
+    for (const img of imagenes) {
+      await eliminarArchivoBanner(img.imagenPath);
+    }
+
     await prisma.$executeRaw`DELETE FROM tbl_festividades WHERE id = ${parseInt(id)}`;
 
     await registrarAuditoria(
@@ -242,7 +248,7 @@ const toggleActivo = async (req, res) => {
 };
 
 /**
- * Obtener festividades activas agrupadas por punto (público)
+ * Obtener festividades activas con imágenes (público)
  * GET /api/public/festividades
  */
 const getFestividadesPublicas = async (req, res) => {
@@ -252,7 +258,6 @@ const getFestividadesPublicas = async (req, res) => {
         f.id,
         f.titulo,
         f.descripcion,
-        f.imagen_path as "imagenPath",
         f.orden,
         p.id as "puntoId",
         p.nombre as "puntoNombre",
@@ -263,7 +268,30 @@ const getFestividadesPublicas = async (req, res) => {
       ORDER BY p.ciudad ASC, f.orden ASC, f.id DESC
     `;
 
-    res.json({ festividades });
+    const imagenes = festividades.length > 0
+      ? await prisma.$queryRaw`
+          SELECT
+            id,
+            id_festividad as "idFestividad",
+            imagen_path as "imagenPath",
+            orden
+          FROM tbl_festividades_imagenes
+          ORDER BY orden ASC, id ASC
+        `
+      : [];
+
+    const imagenesMap = {};
+    for (const img of imagenes) {
+      if (!imagenesMap[img.idFestividad]) imagenesMap[img.idFestividad] = [];
+      imagenesMap[img.idFestividad].push(img);
+    }
+
+    const result = festividades.map(f => ({
+      ...f,
+      imagenes: imagenesMap[f.id] || []
+    }));
+
+    res.json({ festividades: result });
   } catch (error) {
     console.error('Error obteniendo festividades públicas:', error);
     if (error.code === '42P01') {

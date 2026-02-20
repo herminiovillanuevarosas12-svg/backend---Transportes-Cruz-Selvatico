@@ -23,6 +23,9 @@ router.get('/landing/gallery', landingController.getGaleriaPublica);
 // GET /api/public/landing/config - Obtener configuración de landing
 router.get('/landing/config', landingController.getConfigLandingPublica);
 
+// GET /api/public/landing/servicios - Obtener servicios landing (público)
+router.get('/landing/servicios', landingController.getServiciosPublicos);
+
 // GET /api/public/festividades - Obtener festividades activas (público)
 router.get('/festividades', festividadesController.getFestividadesPublicas);
 

@@ -377,6 +377,12 @@ model tbl_configuracion_sistema {
   youtube_url               String?   @db.VarChar(200)
   tiempo_rotacion_banner    Int?      @default(5)
   imagen_experiencia        String?   @db.VarChar(500)
+  experiencia_titulo        String?   @db.VarChar(200)
+  experiencia_descripcion   String?
+  experiencia_badge_numero  String?   @db.VarChar(20)
+  experiencia_badge_texto   String?   @db.VarChar(100)
+  experiencia_features      String?
+  tiktok_url                String?   @db.VarChar(255)
 }
 
 model tbl_comprobante_items {
@@ -645,21 +651,44 @@ model tbl_precios_base_encomienda {
 }
 
 model tbl_festividades {
-  id                     Int       @id @default(autoincrement())
-  id_punto               Int
-  titulo                 String    @db.VarChar(200)
-  descripcion            String?
-  imagen_path            String?   @db.VarChar(500)
-  activo                 Boolean   @default(true)
-  orden                  Int?      @default(0)
-  user_id_registration   Int?
-  date_time_registration DateTime? @default(now()) @db.Timestamptz(6)
-  user_id_modification   Int?
-  date_time_modification DateTime? @db.Timestamptz(6)
-  tbl_puntos             Punto     @relation(fields: [id_punto], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                        Int                         @id @default(autoincrement())
+  id_punto                  Int
+  titulo                    String                      @db.VarChar(200)
+  descripcion               String?
+  activo                    Boolean                     @default(true)
+  orden                     Int?                        @default(0)
+  user_id_registration      Int?
+  date_time_registration    DateTime?                   @default(now()) @db.Timestamptz(6)
+  user_id_modification      Int?
+  date_time_modification    DateTime?                   @db.Timestamptz(6)
+  tbl_puntos                Punto                       @relation(fields: [id_punto], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tbl_festividades_imagenes tbl_festividades_imagenes[]
 
   @@index([activo, orden], map: "idx_festividades_activo")
   @@index([id_punto], map: "idx_festividades_punto")
+}
+
+model tbl_landing_servicios {
+  id          Int      @id @default(autoincrement())
+  clave       String   @unique @db.VarChar(50)
+  titulo      String   @db.VarChar(200)
+  descripcion String
+  features    String
+  cta_texto   String   @db.VarChar(100)
+  cta_link    String   @db.VarChar(200)
+  orden       Int?     @default(0)
+  activo      Boolean? @default(true)
+}
+
+model tbl_festividades_imagenes {
+  id                     Int              @id @default(autoincrement())
+  id_festividad          Int
+  imagen_path            String           @db.VarChar(500)
+  orden                  Int?             @default(0)
+  date_time_registration DateTime?        @default(now()) @db.Timestamptz(6)
+  tbl_festividades       tbl_festividades @relation(fields: [id_festividad], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([id_festividad, orden], map: "idx_fest_img_festividad")
 }
 
 enum TipoPunto {

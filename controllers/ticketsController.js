@@ -162,7 +162,8 @@ const vender = async (req, res) => {
       metodoPago,
       puntosACanjear = 0,
       tipoDocumento,
-      clienteFactura
+      clienteFactura,
+      precioManual
     } = req.body;
 
     // Validaciones
@@ -342,8 +343,10 @@ const vender = async (req, res) => {
       // Redondear a 2 decimales
       descuentoPuntos = Math.round(descuentoPuntos * 100) / 100;
 
-      // Calcular precio final
-      const precioFinal = Math.max(0, precioOriginal - descuentoPuntos);
+      // Calcular precio final (usar precioManual si fue editado manualmente)
+      const precioFinal = precioManual != null && !isNaN(parseFloat(precioManual))
+        ? Math.max(0, Math.round(parseFloat(precioManual) * 100) / 100)
+        : Math.max(0, precioOriginal - descuentoPuntos);
 
       // Calcular nuevos puntos del cliente
       const nuevosPuntosDisponibles = puntosDisponiblesActuales - puntosACanjearFinal + puntosGanados;
@@ -821,7 +824,8 @@ const venderInstantaneo = async (req, res) => {
       metodoPago,
       puntosACanjear = 0,
       tipoDocumento,
-      clienteFactura
+      clienteFactura,
+      precioManual
     } = req.body;
 
     // Validaciones basicas
@@ -985,8 +989,10 @@ const venderInstantaneo = async (req, res) => {
       descuentoPuntos = Math.min(descuentoPuntos, precioOriginal);
       descuentoPuntos = Math.round(descuentoPuntos * 100) / 100;
 
-      // Calcular precio final
-      const precioFinal = Math.max(0, precioOriginal - descuentoPuntos);
+      // Calcular precio final (usar precioManual si fue editado manualmente)
+      const precioFinal = precioManual != null && !isNaN(parseFloat(precioManual))
+        ? Math.max(0, Math.round(parseFloat(precioManual) * 100) / 100)
+        : Math.max(0, precioOriginal - descuentoPuntos);
 
       // Calcular nuevos puntos del cliente
       const nuevosPuntosDisponibles = puntosDisponiblesActuales - puntosACanjearFinal + puntosGanados;

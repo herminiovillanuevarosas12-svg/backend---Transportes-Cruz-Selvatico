@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const landingController = require('../controllers/landingController');
 const festividadesController = require('../controllers/festividadesController');
+const festividadesImagenesController = require('../controllers/festividadesImagenesController');
 const { verifyToken, requirePermission } = require('../middleware/authMiddleware');
 const { uploadBanner } = require('../middleware/bannerUpload');
 
@@ -88,6 +89,35 @@ router.delete(
 );
 
 /**
+ * SERVICIOS LANDING
+ */
+
+// GET /api/landing/servicios - Listar servicios (admin)
+router.get(
+  '/servicios',
+  requirePermission('LANDING_VER'),
+  landingController.getServiciosAdmin
+);
+
+// PUT /api/landing/servicios/:id - Actualizar servicio
+router.put(
+  '/servicios/:id',
+  requirePermission('LANDING_EDITAR'),
+  landingController.actualizarServicio
+);
+
+/**
+ * FESTIVIDADES - IMÁGENES (rutas específicas primero para evitar conflicto con :id)
+ */
+
+// DELETE /api/landing/festividades/imagenes/:imgId - Eliminar imagen
+router.delete(
+  '/festividades/imagenes/:imgId',
+  requirePermission('LANDING_EDITAR'),
+  festividadesImagenesController.eliminar
+);
+
+/**
  * FESTIVIDADES
  */
 
@@ -102,7 +132,6 @@ router.get(
 router.post(
   '/festividades',
   requirePermission('LANDING_EDITAR'),
-  uploadBanner.single('imagen'),
   festividadesController.crear
 );
 
@@ -110,7 +139,6 @@ router.post(
 router.put(
   '/festividades/:id',
   requirePermission('LANDING_EDITAR'),
-  uploadBanner.single('imagen'),
   festividadesController.actualizar
 );
 
@@ -126,6 +154,28 @@ router.patch(
   '/festividades/:id/toggle',
   requirePermission('LANDING_EDITAR'),
   festividadesController.toggleActivo
+);
+
+// GET /api/landing/festividades/:id/imagenes - Listar imágenes
+router.get(
+  '/festividades/:id/imagenes',
+  requirePermission('LANDING_VER'),
+  festividadesImagenesController.listar
+);
+
+// POST /api/landing/festividades/:id/imagenes - Agregar imagen
+router.post(
+  '/festividades/:id/imagenes',
+  requirePermission('LANDING_EDITAR'),
+  uploadBanner.single('imagen'),
+  festividadesImagenesController.agregar
+);
+
+// PUT /api/landing/festividades/:id/imagenes/orden - Reordenar imágenes
+router.put(
+  '/festividades/:id/imagenes/orden',
+  requirePermission('LANDING_EDITAR'),
+  festividadesImagenesController.reordenar
 );
 
 module.exports = router;
