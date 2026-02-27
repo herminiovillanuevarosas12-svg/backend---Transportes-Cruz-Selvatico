@@ -8,6 +8,12 @@ const router = express.Router();
 const encomiendasController = require('../controllers/encomiendasController');
 const landingController = require('../controllers/landingController');
 const festividadesController = require('../controllers/festividadesController');
+const destinosPublicosController = require('../controllers/destinosPublicosController');
+const preguntasFrecuentesController = require('../controllers/preguntasFrecuentesController');
+const promocionesController = require('../controllers/promocionesController');
+const contactoController = require('../controllers/contactoController');
+const paginasContenidoController = require('../controllers/paginasContenidoController');
+const encomiendasInfoController = require('../controllers/encomiendasInfoController');
 const prisma = require('../config/prisma');
 const { formatTimeForAPI } = require('../utils/dateUtils');
 
@@ -23,11 +29,17 @@ router.get('/landing/gallery', landingController.getGaleriaPublica);
 // GET /api/public/landing/config - Obtener configuración de landing
 router.get('/landing/config', landingController.getConfigLandingPublica);
 
-// GET /api/public/landing/servicios - Obtener servicios landing (público)
-router.get('/landing/servicios', landingController.getServiciosPublicos);
+// GET /api/public/experiencia-iconos - Obtener iconos sección experiencia (público)
+router.get('/experiencia-iconos', landingController.getExperienciaIconosPublicos);
 
 // GET /api/public/festividades - Obtener festividades activas (público)
 router.get('/festividades', festividadesController.getFestividadesPublicas);
+
+// GET /api/public/destinos-imagenes - Obtener imágenes de destinos (público)
+router.get('/destinos-imagenes', landingController.getDestinosImagenesPublico);
+
+// GET /api/public/destinos-banner - Obtener banner de destinos (público)
+router.get('/destinos-banner', landingController.getDestinosBannerPublico);
 
 /**
  * GET /api/public/rutas - Listar rutas con horarios y precios (publico)
@@ -108,5 +120,28 @@ router.get('/puntos', async (req, res) => {
     res.status(500).json({ error: 'Error al listar puntos' });
   }
 });
+
+// === DESTINOS (publico) ===
+router.get('/destinos', destinosPublicosController.getDestinosPublicos);
+router.get('/destinos/:slug', destinosPublicosController.getDestinoBySlug);
+
+// === PREGUNTAS FRECUENTES (publico) ===
+router.get('/preguntas-frecuentes', preguntasFrecuentesController.getPreguntasPublicas);
+
+// === PROMOCIONES (publico) ===
+router.get('/promociones', promocionesController.getPromocionesPublicas);
+
+// === CONTACTO (publico) ===
+router.post('/contacto', contactoController.enviarMensaje);
+
+// === ENCOMIENDAS INFO (publico) ===
+router.get('/encomiendas-ventajas', encomiendasInfoController.getVentajasPublicas);
+
+// === NOSOTROS (publico) ===
+const nosotrosController = require('../controllers/nosotrosController');
+router.get('/nosotros', nosotrosController.getNosotrosPublico);
+
+// === PAGINAS DE CONTENIDO (publico) ===
+router.get('/paginas/:slug', paginasContenidoController.getPaginaBySlug);
 
 module.exports = router;

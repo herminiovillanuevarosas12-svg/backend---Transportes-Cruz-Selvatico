@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const landingController = require('../controllers/landingController');
+const encomiendasInfoController = require('../controllers/encomiendasInfoController');
 const festividadesController = require('../controllers/festividadesController');
 const festividadesImagenesController = require('../controllers/festividadesImagenesController');
 const { verifyToken, requirePermission } = require('../middleware/authMiddleware');
@@ -88,22 +89,90 @@ router.delete(
   landingController.eliminarImagenExperiencia
 );
 
-/**
- * SERVICIOS LANDING
- */
-
-// GET /api/landing/servicios - Listar servicios (admin)
-router.get(
-  '/servicios',
-  requirePermission('LANDING_VER'),
-  landingController.getServiciosAdmin
+// PUT /api/landing/config/imagen-fondo-experiencia - Subir/actualizar imagen de fondo experiencia
+router.put(
+  '/config/imagen-fondo-experiencia',
+  requirePermission('LANDING_EDITAR'),
+  uploadBanner.single('imagen'),
+  landingController.subirImagenFondoExperiencia
 );
 
-// PUT /api/landing/servicios/:id - Actualizar servicio
-router.put(
-  '/servicios/:id',
+// DELETE /api/landing/config/imagen-fondo-experiencia - Eliminar imagen de fondo experiencia
+router.delete(
+  '/config/imagen-fondo-experiencia',
   requirePermission('LANDING_EDITAR'),
-  landingController.actualizarServicio
+  landingController.eliminarImagenFondoExperiencia
+);
+
+// PUT /api/landing/config/imagen-encomiendas-hero - Subir/actualizar imagen hero encomiendas
+router.put(
+  '/config/imagen-encomiendas-hero',
+  requirePermission('LANDING_EDITAR'),
+  uploadBanner.single('imagen'),
+  encomiendasInfoController.subirHeroImagen
+);
+
+// DELETE /api/landing/config/imagen-encomiendas-hero - Eliminar imagen hero encomiendas
+router.delete(
+  '/config/imagen-encomiendas-hero',
+  requirePermission('LANDING_EDITAR'),
+  encomiendasInfoController.eliminarHeroImagen
+);
+
+// PUT /api/landing/config/imagen-encomiendas-landing - Subir imagen seccion encomiendas landing
+router.put(
+  '/config/imagen-encomiendas-landing',
+  requirePermission('LANDING_EDITAR'),
+  uploadBanner.single('imagen'),
+  encomiendasInfoController.subirLandingImagen
+);
+
+// DELETE /api/landing/config/imagen-encomiendas-landing - Eliminar imagen seccion encomiendas landing
+router.delete(
+  '/config/imagen-encomiendas-landing',
+  requirePermission('LANDING_EDITAR'),
+  encomiendasInfoController.eliminarLandingImagen
+);
+
+/**
+ * DESTINOS IMAGENES
+ */
+
+// GET /api/landing/destinos-imagenes - Listar imágenes destinos (admin)
+router.get(
+  '/destinos-imagenes',
+  requirePermission('LANDING_VER'),
+  landingController.getDestinosImagenesAdmin
+);
+
+// POST /api/landing/destinos-imagenes - Subir imagen destino
+router.post(
+  '/destinos-imagenes',
+  requirePermission('LANDING_EDITAR'),
+  uploadBanner.single('imagen'),
+  landingController.subirImagenDestino
+);
+
+// DELETE /api/landing/destinos-imagenes/:id - Eliminar imagen destino
+router.delete(
+  '/destinos-imagenes/:id',
+  requirePermission('LANDING_EDITAR'),
+  landingController.eliminarImagenDestino
+);
+
+// PUT /api/landing/destinos-banner - Subir banner destinos
+router.put(
+  '/destinos-banner',
+  requirePermission('LANDING_EDITAR'),
+  uploadBanner.single('imagen'),
+  landingController.subirBannerDestinos
+);
+
+// DELETE /api/landing/destinos-banner - Eliminar banner destinos
+router.delete(
+  '/destinos-banner',
+  requirePermission('LANDING_EDITAR'),
+  landingController.eliminarBannerDestinos
 );
 
 /**
@@ -176,6 +245,38 @@ router.put(
   '/festividades/:id/imagenes/orden',
   requirePermission('LANDING_EDITAR'),
   festividadesImagenesController.reordenar
+);
+
+/**
+ * ICONOS EXPERIENCIA
+ */
+
+// GET /api/landing/experiencia-iconos - Listar iconos (admin)
+router.get(
+  '/experiencia-iconos',
+  requirePermission('LANDING_VER'),
+  landingController.getExperienciaIconosAdmin
+);
+
+// POST /api/landing/experiencia-iconos - Crear icono
+router.post(
+  '/experiencia-iconos',
+  requirePermission('LANDING_EDITAR'),
+  landingController.crearExperienciaIcono
+);
+
+// PUT /api/landing/experiencia-iconos/:id - Actualizar icono
+router.put(
+  '/experiencia-iconos/:id',
+  requirePermission('LANDING_EDITAR'),
+  landingController.actualizarExperienciaIcono
+);
+
+// DELETE /api/landing/experiencia-iconos/:id - Eliminar icono
+router.delete(
+  '/experiencia-iconos/:id',
+  requirePermission('LANDING_EDITAR'),
+  landingController.eliminarExperienciaIcono
 );
 
 module.exports = router;

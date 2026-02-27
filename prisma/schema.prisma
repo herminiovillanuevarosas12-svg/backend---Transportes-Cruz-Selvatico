@@ -133,6 +133,7 @@ model Ruta {
   viajes               Viaje[]
 
   @@unique([idPuntoOrigen, idPuntoDestino, idTipoCarro], map: "tbl_rutas_origen_destino_tipo_key")
+  @@unique([idPuntoOrigen, idPuntoDestino])
   @@index([idTipoCarro], map: "idx_rutas_tipo_carro")
   @@map("tbl_rutas")
 }
@@ -352,37 +353,54 @@ model ConfiguracionPreciosEncomienda {
 }
 
 model tbl_configuracion_sistema {
-  id                        Int       @id @default(autoincrement())
-  nombre_empresa            String    @default("Transportes Herminio") @db.VarChar(255)
-  ruc                       String?   @db.VarChar(11)
-  direccion                 String?   @db.VarChar(500)
-  telefono                  String?   @db.VarChar(50)
-  precio_base_pasaje        Decimal?  @default(25.00) @db.Decimal(10, 2)
-  precio_base_encomienda_kg Decimal?  @default(5.00) @db.Decimal(10, 2)
-  tiempo_reserva_minutos    Int?      @default(30)
-  capacidad_default_bus     Int?      @default(40)
-  activo                    Boolean?  @default(true)
-  user_id_registration      Int?
-  date_time_registration    DateTime? @default(now()) @db.Timestamptz(6)
-  user_id_modification      Int?
-  date_time_modification    DateTime? @db.Timestamptz(6)
-  soles_por_punto           Decimal?  @default(10.00) @db.Decimal(10, 2)
-  puntos_por_sol_descuento  Decimal?  @default(10.00) @db.Decimal(10, 2)
-  politicas_encomienda      String?
-  slogan                    String?   @default("Viaja seguro, envía confiado") @db.VarChar(200)
-  email_contacto            String?   @db.VarChar(100)
-  whatsapp                  String?   @db.VarChar(20)
-  facebook_url              String?   @db.VarChar(200)
-  instagram_url             String?   @db.VarChar(200)
-  youtube_url               String?   @db.VarChar(200)
-  tiempo_rotacion_banner    Int?      @default(5)
-  imagen_experiencia        String?   @db.VarChar(500)
-  experiencia_titulo        String?   @db.VarChar(200)
-  experiencia_descripcion   String?
-  experiencia_badge_numero  String?   @db.VarChar(20)
-  experiencia_badge_texto   String?   @db.VarChar(100)
-  experiencia_features      String?
-  tiktok_url                String?   @db.VarChar(255)
+  id                              Int       @id @default(autoincrement())
+  nombre_empresa                  String    @default("Transportes Herminio") @db.VarChar(255)
+  ruc                             String?   @db.VarChar(11)
+  direccion                       String?   @db.VarChar(500)
+  telefono                        String?   @db.VarChar(50)
+  precio_base_pasaje              Decimal?  @default(25.00) @db.Decimal(10, 2)
+  precio_base_encomienda_kg       Decimal?  @default(5.00) @db.Decimal(10, 2)
+  tiempo_reserva_minutos          Int?      @default(30)
+  capacidad_default_bus           Int?      @default(40)
+  activo                          Boolean?  @default(true)
+  user_id_registration            Int?
+  date_time_registration          DateTime? @default(now()) @db.Timestamptz(6)
+  user_id_modification            Int?
+  date_time_modification          DateTime? @db.Timestamptz(6)
+  soles_por_punto                 Decimal?  @default(10.00) @db.Decimal(10, 2)
+  puntos_por_sol_descuento        Decimal?  @default(10.00) @db.Decimal(10, 2)
+  politicas_encomienda            String?
+  slogan                          String?   @default("Viaja seguro, envía confiado") @db.VarChar(200)
+  email_contacto                  String?   @db.VarChar(100)
+  whatsapp                        String?   @db.VarChar(20)
+  facebook_url                    String?   @db.VarChar(200)
+  instagram_url                   String?   @db.VarChar(200)
+  youtube_url                     String?   @db.VarChar(200)
+  tiempo_rotacion_banner          Int?      @default(5)
+  imagen_experiencia              String?   @db.VarChar(500)
+  experiencia_titulo              String?   @db.VarChar(200)
+  experiencia_descripcion         String?
+  experiencia_badge_numero        String?   @db.VarChar(20)
+  experiencia_badge_texto         String?   @db.VarChar(100)
+  experiencia_features            String?
+  tiktok_url                      String?   @db.VarChar(255)
+  imagen_fondo_experiencia        String?
+  experiencia_cta_texto           String?   @db.VarChar(100)
+  experiencia_cta_link            String?   @db.VarChar(200)
+  encomiendas_hero_imagen         String?   @db.VarChar(500)
+  encomiendas_landing_titulo      String?   @db.VarChar(300)
+  encomiendas_landing_descripcion String?
+  encomiendas_landing_imagen      String?   @db.VarChar(500)
+  nosotros_hero_titulo            String?   @default("Nosotros") @db.VarChar(200)
+  nosotros_hero_subtitulo         String?   @default("Conocenos") @db.VarChar(200)
+  nosotros_hero_imagen            String?   @db.VarChar(500)
+  nosotros_mision_titulo          String?   @default("Mision") @db.VarChar(200)
+  nosotros_mision_texto           String?
+  nosotros_mision_icono           String?   @default("Bus") @db.VarChar(50)
+  nosotros_vision_titulo          String?   @default("Vision") @db.VarChar(200)
+  nosotros_vision_texto           String?
+  nosotros_vision_icono           String?   @default("Route") @db.VarChar(50)
+  nosotros_valores_titulo         String?   @default("Valores institucionales") @db.VarChar(200)
 }
 
 model tbl_comprobante_items {
@@ -689,6 +707,179 @@ model tbl_festividades_imagenes {
   tbl_festividades       tbl_festividades @relation(fields: [id_festividad], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([id_festividad, orden], map: "idx_fest_img_festividad")
+}
+
+model tbl_encomiendas_ventajas {
+  id                     Int       @id @default(autoincrement())
+  titulo                 String    @db.VarChar(200)
+  descripcion            String?
+  imagen_path            String?   @db.VarChar(500)
+  icono                  String?   @default("Package") @db.VarChar(50)
+  orden                  Int?      @default(0)
+  activo                 Boolean   @default(true)
+  user_id_registration   Int?
+  date_time_registration DateTime? @default(now()) @db.Timestamptz(6)
+  user_id_modification   Int?
+  date_time_modification DateTime? @db.Timestamptz(6)
+
+  @@index([activo, orden], map: "idx_encomiendas_ventajas_activo")
+}
+
+model tbl_experiencia_iconos {
+  id           Int      @id @default(autoincrement())
+  nombre_icono String   @db.VarChar(100)
+  etiqueta     String?  @db.VarChar(200)
+  orden        Int?     @default(0)
+  activo       Boolean? @default(true)
+}
+
+model tbl_nosotros_valores {
+  id                     Int       @id @default(autoincrement())
+  titulo                 String    @db.VarChar(200)
+  imagen_path            String    @db.VarChar(500)
+  orden                  Int?      @default(0)
+  activo                 Boolean?  @default(true)
+  user_id_registration   Int?
+  date_time_registration DateTime? @default(now()) @db.Timestamptz(6)
+  user_id_modification   Int?
+  date_time_modification DateTime? @db.Timestamptz(6)
+
+  @@index([activo, orden], map: "idx_nosotros_valores_activo")
+}
+
+model tbl_contacto_mensajes {
+  id                     Int       @id @default(autoincrement())
+  tipo_remitente         String    @default("pasajero") @db.VarChar(20)
+  nombre                 String    @db.VarChar(200)
+  email                  String?   @db.VarChar(200)
+  telefono               String?   @db.VarChar(50)
+  empresa                String?   @db.VarChar(200)
+  ruc                    String?   @db.VarChar(20)
+  asunto                 String    @db.VarChar(300)
+  mensaje                String
+  leido                  Boolean   @default(false)
+  respondido             Boolean   @default(false)
+  notas_internas         String?
+  date_time_registration DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([date_time_registration(sort: Desc)], map: "idx_contacto_mensajes_fecha")
+  @@index([leido, respondido], map: "idx_contacto_mensajes_leido")
+}
+
+model tbl_destinos_publicos {
+  id                       Int                        @id @default(autoincrement())
+  slug                     String                     @unique @db.VarChar(100)
+  nombre                   String                     @db.VarChar(200)
+  subtitulo                String?                    @db.VarChar(300)
+  descripcion              String?
+  imagen_path              String?                    @db.VarChar(500)
+  direccion_terminal       String?                    @db.VarChar(500)
+  telefono_terminal        String?                    @db.VarChar(50)
+  horarios_atencion        String?                    @db.VarChar(300)
+  precio_desde             Decimal?                   @db.Decimal(10, 2)
+  servicios_disponibles    String?                    @default("")
+  orden                    Int?                       @default(0)
+  activo                   Boolean                    @default(true)
+  user_id_registration     Int?
+  date_time_registration   DateTime?                  @default(now()) @db.Timestamptz(6)
+  user_id_modification     Int?
+  date_time_modification   DateTime?                  @db.Timestamptz(6)
+  tbl_festividades_destino tbl_festividades_destino[]
+
+  @@index([activo, orden], map: "idx_destinos_publicos_activo")
+  @@index([slug], map: "idx_destinos_publicos_slug")
+}
+
+model tbl_festividades_destino {
+  id                     Int                   @id @default(autoincrement())
+  id_destino             Int
+  titulo                 String                @db.VarChar(200)
+  descripcion            String?
+  fecha_inicio           DateTime?             @db.Date
+  fecha_fin              DateTime?             @db.Date
+  orden                  Int?                  @default(0)
+  activo                 Boolean               @default(true)
+  user_id_registration   Int?
+  date_time_registration DateTime?             @default(now()) @db.Timestamptz(6)
+  user_id_modification   Int?
+  date_time_modification DateTime?             @db.Timestamptz(6)
+  tbl_destinos_publicos  tbl_destinos_publicos @relation(fields: [id_destino], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([activo], map: "idx_festividades_destino_activo")
+  @@index([id_destino], map: "idx_festividades_destino_destino")
+}
+
+model tbl_paginas_contenido {
+  id                     Int       @id @default(autoincrement())
+  slug                   String    @unique @db.VarChar(100)
+  titulo                 String    @db.VarChar(200)
+  subtitulo              String?   @db.VarChar(300)
+  contenido              String?
+  imagen_hero_path       String?   @db.VarChar(500)
+  meta_descripcion       String?   @db.VarChar(300)
+  activo                 Boolean   @default(true)
+  user_id_registration   Int?
+  date_time_registration DateTime? @default(now()) @db.Timestamptz(6)
+  user_id_modification   Int?
+  date_time_modification DateTime? @db.Timestamptz(6)
+
+  @@index([slug], map: "idx_paginas_contenido_slug")
+}
+
+model tbl_preguntas_frecuentes {
+  id                     Int       @id @default(autoincrement())
+  pregunta               String    @db.VarChar(500)
+  respuesta              String
+  categoria              String?   @default("general") @db.VarChar(100)
+  orden                  Int?      @default(0)
+  activo                 Boolean   @default(true)
+  user_id_registration   Int?
+  date_time_registration DateTime? @default(now()) @db.Timestamptz(6)
+  user_id_modification   Int?
+  date_time_modification DateTime? @db.Timestamptz(6)
+
+  @@index([activo, orden], map: "idx_preguntas_frecuentes_activo")
+}
+
+model tbl_promociones_landing {
+  id                     Int       @id @default(autoincrement())
+  titulo                 String    @db.VarChar(200)
+  subtitulo              String?   @db.VarChar(300)
+  descripcion            String?
+  imagen_path            String?   @db.VarChar(500)
+  porcentaje_descuento   Decimal?  @db.Decimal(5, 2)
+  codigo_promocion       String?   @db.VarChar(50)
+  fecha_inicio           DateTime? @db.Date
+  fecha_fin              DateTime? @db.Date
+  url_destino            String?   @db.VarChar(500)
+  orden                  Int?      @default(0)
+  activo                 Boolean   @default(true)
+  user_id_registration   Int?
+  date_time_registration DateTime? @default(now()) @db.Timestamptz(6)
+  user_id_modification   Int?
+  date_time_modification DateTime? @db.Timestamptz(6)
+
+  @@index([activo, orden], map: "idx_promociones_landing_activo")
+  @@index([fecha_inicio, fecha_fin], map: "idx_promociones_landing_fechas")
+}
+
+model tbl_servicios_transporte {
+  id                     Int       @id @default(autoincrement())
+  slug                   String    @unique @db.VarChar(100)
+  titulo                 String    @db.VarChar(200)
+  subtitulo              String?   @db.VarChar(300)
+  descripcion            String?
+  imagen_path            String?   @db.VarChar(500)
+  caracteristicas        Json?     @default("[]")
+  orden                  Int?      @default(0)
+  activo                 Boolean   @default(true)
+  user_id_registration   Int?
+  date_time_registration DateTime? @default(now()) @db.Timestamptz(6)
+  user_id_modification   Int?
+  date_time_modification DateTime? @db.Timestamptz(6)
+
+  @@index([activo, orden], map: "idx_servicios_transporte_activo")
+  @@index([slug], map: "idx_servicios_transporte_slug")
 }
 
 enum TipoPunto {

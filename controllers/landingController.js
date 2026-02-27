@@ -90,11 +90,17 @@ const getConfigLandingPublica = async (req, res) => {
         tiktok_url as "tiktokUrl",
         COALESCE(tiempo_rotacion_banner, 5) as "tiempoRotacionBanner",
         imagen_experiencia as "imagenExperiencia",
+        imagen_fondo_experiencia as "imagenFondoExperiencia",
         experiencia_titulo as "experienciaTitulo",
         experiencia_descripcion as "experienciaDescripcion",
         experiencia_badge_numero as "experienciaBadgeNumero",
         experiencia_badge_texto as "experienciaBadgeTexto",
-        experiencia_features as "experienciaFeatures"
+        experiencia_features as "experienciaFeatures",
+        experiencia_cta_texto as "experienciaCtaTexto",
+        experiencia_cta_link as "experienciaCtaLink",
+        encomiendas_landing_titulo as "encomiendasLandingTitulo",
+        encomiendas_landing_descripcion as "encomiendasLandingDescripcion",
+        encomiendas_landing_imagen as "encomiendasLandingImagen"
       FROM tbl_configuracion_sistema
       WHERE activo = true
       LIMIT 1
@@ -105,7 +111,9 @@ const getConfigLandingPublica = async (req, res) => {
         config: {
           nombreEmpresa: 'Transportes',
           slogan: 'Viaja seguro, envía confiado',
-          tiempoRotacionBanner: 5
+          tiempoRotacionBanner: 5,
+          experienciaCtaTexto: 'VER SERVICIOS',
+          experienciaCtaLink: '/rutas-info'
         }
       });
     }
@@ -443,7 +451,11 @@ const actualizarConfigLanding = async (req, res) => {
       experienciaDescripcion,
       experienciaBadgeNumero,
       experienciaBadgeTexto,
-      experienciaFeatures
+      experienciaFeatures,
+      experienciaCtaTexto,
+      experienciaCtaLink,
+      encomiendasLandingTitulo,
+      encomiendasLandingDescripcion
     } = req.body;
 
     // Actualizar campos de landing en configuración activa
@@ -462,6 +474,10 @@ const actualizarConfigLanding = async (req, res) => {
         experiencia_badge_numero = ${experienciaBadgeNumero || null},
         experiencia_badge_texto = ${experienciaBadgeTexto || null},
         experiencia_features = ${experienciaFeatures || null},
+        experiencia_cta_texto = ${experienciaCtaTexto || 'VER SERVICIOS'},
+        experiencia_cta_link = ${experienciaCtaLink || '/rutas-info'},
+        encomiendas_landing_titulo = ${encomiendasLandingTitulo || null},
+        encomiendas_landing_descripcion = ${encomiendasLandingDescripcion || null},
         date_time_modification = NOW(),
         user_id_modification = ${req.user.id}
       WHERE activo = true
@@ -500,11 +516,17 @@ const getConfigLandingAdmin = async (req, res) => {
         tiktok_url as "tiktokUrl",
         COALESCE(tiempo_rotacion_banner, 5) as "tiempoRotacionBanner",
         imagen_experiencia as "imagenExperiencia",
+        imagen_fondo_experiencia as "imagenFondoExperiencia",
         experiencia_titulo as "experienciaTitulo",
         experiencia_descripcion as "experienciaDescripcion",
         experiencia_badge_numero as "experienciaBadgeNumero",
         experiencia_badge_texto as "experienciaBadgeTexto",
-        experiencia_features as "experienciaFeatures"
+        experiencia_features as "experienciaFeatures",
+        experiencia_cta_texto as "experienciaCtaTexto",
+        experiencia_cta_link as "experienciaCtaLink",
+        encomiendas_landing_titulo as "encomiendasLandingTitulo",
+        encomiendas_landing_descripcion as "encomiendasLandingDescripcion",
+        encomiendas_landing_imagen as "encomiendasLandingImagen"
       FROM tbl_configuracion_sistema
       WHERE activo = true
       LIMIT 1
@@ -632,119 +654,473 @@ const eliminarImagenExperiencia = async (req, res) => {
 };
 
 /**
- * Obtener servicios landing (público)
- * GET /api/public/landing/servicios
+ * Subir/actualizar imagen de FONDO de la sección Experiencia
+ * PUT /api/landing/config/imagen-fondo-experiencia
  */
-const getServiciosPublicos = async (req, res) => {
+const subirImagenFondoExperiencia = async (req, res) => {
   try {
-    const servicios = await prisma.$queryRaw`
+    let imagenPath = null;
+
+    if (req.file) {
+      imagenPath = await procesarBannerFile(req.file, 'banner');
+    } else if (req.body.imagenBase64) {
+      imagenPath = await guardarBannerBase64(req.body.imagenBase64, 'banner');
+    }
+
+    if (!imagenPath) {
+      return res.status(400).json({ error: 'Se requiere una imagen' });
+    }
+
+    const configActual = await prisma.$queryRaw`
+      SELECT imagen_fondo_experiencia as "imagenFondoExperiencia"
+      FROM tbl_configuracion_sistema
+      WHERE activo = true
+      LIMIT 1
+    `;
+
+    if (configActual?.[0]?.imagenFondoExperiencia) {
+      await eliminarArchivoBanner(configActual[0].imagenFondoExperiencia);
+    }
+
+    await prisma.$executeRaw`
+      UPDATE tbl_configuracion_sistema SET
+        imagen_fondo_experiencia = ${imagenPath},
+        date_time_modification = NOW(),
+        user_id_modification = ${req.user.id}
+      WHERE activo = true
+    `;
+
+    await registrarAuditoria(
+      req.user.id,
+      'IMAGEN_FONDO_EXPERIENCIA_ACTUALIZADA',
+      'CONFIGURACION',
+      null,
+      { imagenPath }
+    );
+
+    res.json({
+      mensaje: 'Imagen de fondo de experiencia actualizada exitosamente',
+      imagenFondoExperiencia: imagenPath
+    });
+  } catch (error) {
+    console.error('Error subiendo imagen de fondo experiencia:', error);
+    res.status(500).json({ error: 'Error al subir imagen de fondo de experiencia' });
+  }
+};
+
+/**
+ * Eliminar imagen de FONDO de la sección Experiencia
+ * DELETE /api/landing/config/imagen-fondo-experiencia
+ */
+const eliminarImagenFondoExperiencia = async (req, res) => {
+  try {
+    const configActual = await prisma.$queryRaw`
+      SELECT imagen_fondo_experiencia as "imagenFondoExperiencia"
+      FROM tbl_configuracion_sistema
+      WHERE activo = true
+      LIMIT 1
+    `;
+
+    if (configActual?.[0]?.imagenFondoExperiencia) {
+      await eliminarArchivoBanner(configActual[0].imagenFondoExperiencia);
+    }
+
+    await prisma.$executeRaw`
+      UPDATE tbl_configuracion_sistema SET
+        imagen_fondo_experiencia = NULL,
+        date_time_modification = NOW(),
+        user_id_modification = ${req.user.id}
+      WHERE activo = true
+    `;
+
+    await registrarAuditoria(
+      req.user.id,
+      'IMAGEN_FONDO_EXPERIENCIA_ELIMINADA',
+      'CONFIGURACION',
+      null,
+      {}
+    );
+
+    res.json({ mensaje: 'Imagen de fondo de experiencia eliminada' });
+  } catch (error) {
+    console.error('Error eliminando imagen de fondo experiencia:', error);
+    res.status(500).json({ error: 'Error al eliminar imagen de fondo de experiencia' });
+  }
+};
+
+/**
+ * Obtener iconos de experiencia (público)
+ * GET /api/public/experiencia-iconos
+ */
+const getExperienciaIconosPublicos = async (req, res) => {
+  try {
+    const iconos = await prisma.$queryRaw`
       SELECT
         id,
-        clave,
-        titulo,
-        descripcion,
-        features,
-        cta_texto as "ctaTexto",
-        cta_link as "ctaLink",
+        nombre_icono as "nombreIcono",
+        etiqueta,
         orden
-      FROM tbl_landing_servicios
+      FROM tbl_experiencia_iconos
       WHERE activo = true
       ORDER BY orden ASC, id ASC
     `;
 
-    res.json({ servicios });
+    res.json({ iconos });
   } catch (error) {
-    console.error('Error obteniendo servicios públicos:', error);
+    console.error('Error obteniendo iconos experiencia:', error);
     if (error.code === '42P01' || error.code === '42703') {
-      return res.json({ servicios: [] });
+      return res.json({ iconos: [] });
     }
-    res.status(500).json({ error: 'Error al obtener servicios' });
+    res.status(500).json({ error: 'Error al obtener iconos de experiencia' });
   }
 };
 
 /**
- * Obtener servicios landing (admin)
- * GET /api/landing/servicios
+ * Obtener iconos de experiencia (admin)
+ * GET /api/landing/experiencia-iconos
  */
-const getServiciosAdmin = async (req, res) => {
+const getExperienciaIconosAdmin = async (req, res) => {
   try {
-    const servicios = await prisma.$queryRaw`
+    const iconos = await prisma.$queryRaw`
       SELECT
         id,
-        clave,
-        titulo,
-        descripcion,
-        features,
-        cta_texto as "ctaTexto",
-        cta_link as "ctaLink",
+        nombre_icono as "nombreIcono",
+        etiqueta,
         orden,
         activo
-      FROM tbl_landing_servicios
+      FROM tbl_experiencia_iconos
       ORDER BY orden ASC, id ASC
     `;
 
-    res.json({ servicios });
+    res.json({ iconos });
   } catch (error) {
-    console.error('Error obteniendo servicios admin:', error);
+    console.error('Error obteniendo iconos experiencia admin:', error);
     if (error.code === '42P01' || error.code === '42703') {
-      return res.json({ servicios: [] });
+      return res.json({ iconos: [] });
     }
-    res.status(500).json({ error: 'Error al obtener servicios' });
+    res.status(500).json({ error: 'Error al obtener iconos de experiencia' });
   }
 };
 
 /**
- * Actualizar servicio landing
- * PUT /api/landing/servicios/:id
+ * Crear icono de experiencia
+ * POST /api/landing/experiencia-iconos
  */
-const actualizarServicio = async (req, res) => {
+const crearExperienciaIcono = async (req, res) => {
+  try {
+    const { nombreIcono, etiqueta } = req.body;
+
+    if (!nombreIcono) {
+      return res.status(400).json({ error: 'El nombre del icono es requerido' });
+    }
+
+    // Obtener el máximo orden actual
+    const maxOrden = await prisma.$queryRaw`
+      SELECT COALESCE(MAX(orden), -1) as max FROM tbl_experiencia_iconos
+    `;
+
+    const nuevoOrden = (maxOrden[0]?.max ?? -1) + 1;
+
+    const result = await prisma.$queryRaw`
+      INSERT INTO tbl_experiencia_iconos (nombre_icono, etiqueta, orden, activo)
+      VALUES (${nombreIcono}, ${etiqueta || null}, ${nuevoOrden}, true)
+      RETURNING
+        id,
+        nombre_icono as "nombreIcono",
+        etiqueta,
+        orden,
+        activo
+    `;
+
+    await registrarAuditoria(
+      req.user.id,
+      'EXPERIENCIA_ICONO_CREADO',
+      'EXPERIENCIA_ICONOS',
+      result[0].id,
+      result[0]
+    );
+
+    res.json({
+      mensaje: 'Icono creado exitosamente',
+      icono: result[0]
+    });
+  } catch (error) {
+    console.error('Error creando icono experiencia:', error);
+    res.status(500).json({ error: 'Error al crear icono de experiencia' });
+  }
+};
+
+/**
+ * Actualizar icono de experiencia
+ * PUT /api/landing/experiencia-iconos/:id
+ */
+const actualizarExperienciaIcono = async (req, res) => {
   try {
     const { id } = req.params;
-    const { titulo, descripcion, features, ctaTexto, ctaLink } = req.body;
+    const { nombreIcono, etiqueta, activo } = req.body;
 
-    if (!titulo || !descripcion || !features || !ctaTexto || !ctaLink) {
-      return res.status(400).json({ error: 'Todos los campos son requeridos' });
+    if (!nombreIcono) {
+      return res.status(400).json({ error: 'El nombre del icono es requerido' });
     }
 
     const result = await prisma.$queryRaw`
-      UPDATE tbl_landing_servicios SET
-        titulo = ${titulo},
-        descripcion = ${descripcion},
-        features = ${features},
-        cta_texto = ${ctaTexto},
-        cta_link = ${ctaLink}
+      UPDATE tbl_experiencia_iconos SET
+        nombre_icono = ${nombreIcono},
+        etiqueta = ${etiqueta || null},
+        activo = ${activo !== undefined ? activo : true}
       WHERE id = ${parseInt(id)}
       RETURNING
         id,
-        clave,
-        titulo,
-        descripcion,
-        features,
-        cta_texto as "ctaTexto",
-        cta_link as "ctaLink",
+        nombre_icono as "nombreIcono",
+        etiqueta,
         orden,
         activo
     `;
 
     if (!result || result.length === 0) {
-      return res.status(404).json({ error: 'Servicio no encontrado' });
+      return res.status(404).json({ error: 'Icono no encontrado' });
     }
 
     await registrarAuditoria(
       req.user.id,
-      'SERVICIO_LANDING_ACTUALIZADO',
-      'LANDING_SERVICIOS',
+      'EXPERIENCIA_ICONO_ACTUALIZADO',
+      'EXPERIENCIA_ICONOS',
       parseInt(id),
       result[0]
     );
 
     res.json({
-      mensaje: 'Servicio actualizado exitosamente',
-      servicio: result[0]
+      mensaje: 'Icono actualizado exitosamente',
+      icono: result[0]
     });
   } catch (error) {
-    console.error('Error actualizando servicio:', error);
-    res.status(500).json({ error: 'Error al actualizar servicio' });
+    console.error('Error actualizando icono experiencia:', error);
+    res.status(500).json({ error: 'Error al actualizar icono de experiencia' });
+  }
+};
+
+/**
+ * Eliminar icono de experiencia
+ * DELETE /api/landing/experiencia-iconos/:id
+ */
+const eliminarExperienciaIcono = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await prisma.$queryRaw`
+      DELETE FROM tbl_experiencia_iconos
+      WHERE id = ${parseInt(id)}
+      RETURNING id
+    `;
+
+    if (!result || result.length === 0) {
+      return res.status(404).json({ error: 'Icono no encontrado' });
+    }
+
+    await registrarAuditoria(
+      req.user.id,
+      'EXPERIENCIA_ICONO_ELIMINADO',
+      'EXPERIENCIA_ICONOS',
+      parseInt(id),
+      {}
+    );
+
+    res.json({ mensaje: 'Icono eliminado exitosamente' });
+  } catch (error) {
+    console.error('Error eliminando icono experiencia:', error);
+    res.status(500).json({ error: 'Error al eliminar icono de experiencia' });
+  }
+};
+
+// ============================================
+// DESTINOS IMAGENES
+// ============================================
+
+/**
+ * Obtener imágenes de destinos (público)
+ * GET /api/public/destinos-imagenes
+ */
+const getDestinosImagenesPublico = async (req, res) => {
+  try {
+    const imagenes = await prisma.$queryRaw`
+      SELECT id, ciudad, imagen_path as "imagenPath"
+      FROM tbl_destinos_imagenes
+      ORDER BY ciudad ASC
+    `;
+    res.json({ imagenes });
+  } catch (error) {
+    if (error.code === '42P01') return res.json({ imagenes: [] });
+    console.error('Error obteniendo imágenes destinos:', error);
+    res.status(500).json({ error: 'Error al obtener imágenes de destinos' });
+  }
+};
+
+/**
+ * Obtener banner de destinos (público)
+ * GET /api/public/destinos-banner
+ */
+const getDestinosBannerPublico = async (req, res) => {
+  try {
+    const result = await prisma.$queryRaw`
+      SELECT banner_destinos as "bannerDestinos"
+      FROM tbl_configuracion_sistema
+      WHERE activo = true
+      LIMIT 1
+    `;
+    res.json({ banner: result?.[0]?.bannerDestinos || null });
+  } catch (error) {
+    console.error('Error obteniendo banner destinos:', error);
+    res.json({ banner: null });
+  }
+};
+
+/**
+ * Listar imágenes de destinos (admin)
+ * GET /api/landing/destinos-imagenes
+ */
+const getDestinosImagenesAdmin = async (req, res) => {
+  try {
+    const imagenes = await prisma.$queryRaw`
+      SELECT id, ciudad, imagen_path as "imagenPath",
+             date_time_registration as "fechaCreacion"
+      FROM tbl_destinos_imagenes
+      ORDER BY ciudad ASC
+    `;
+    res.json({ imagenes });
+  } catch (error) {
+    if (error.code === '42P01') return res.json({ imagenes: [] });
+    console.error('Error obteniendo imágenes destinos admin:', error);
+    res.status(500).json({ error: 'Error al obtener imágenes de destinos' });
+  }
+};
+
+/**
+ * Subir/actualizar imagen de destino
+ * POST /api/landing/destinos-imagenes
+ * Body: { ciudad } + file/imagenBase64
+ */
+const subirImagenDestino = async (req, res) => {
+  try {
+    const { ciudad } = req.body;
+    if (!ciudad) return res.status(400).json({ error: 'Ciudad es requerida' });
+
+    let imagenPath = null;
+    if (req.file) {
+      imagenPath = await procesarBannerFile(req.file, 'banner');
+    } else if (req.body.imagenBase64) {
+      imagenPath = await guardarBannerBase64(req.body.imagenBase64, 'banner');
+    }
+    if (!imagenPath) return res.status(400).json({ error: 'Se requiere una imagen' });
+
+    // Obtener imagen anterior si existe
+    const anterior = await prisma.$queryRaw`
+      SELECT imagen_path as "imagenPath" FROM tbl_destinos_imagenes WHERE ciudad = ${ciudad} LIMIT 1
+    `.catch(() => []);
+
+    // Upsert
+    const result = await prisma.$queryRaw`
+      INSERT INTO tbl_destinos_imagenes (ciudad, imagen_path, date_time_registration, date_time_modification)
+      VALUES (${ciudad}, ${imagenPath}, NOW(), NOW())
+      ON CONFLICT (ciudad) DO UPDATE SET
+        imagen_path = ${imagenPath},
+        date_time_modification = NOW()
+      RETURNING id, ciudad, imagen_path as "imagenPath"
+    `;
+
+    // Eliminar imagen anterior de S3/local
+    if (anterior?.[0]?.imagenPath) {
+      await eliminarArchivoBanner(anterior[0].imagenPath);
+    }
+
+    await registrarAuditoria(req.user.id, 'DESTINO_IMAGEN_SUBIDA', 'DESTINOS_IMAGENES', result[0]?.id, { ciudad });
+
+    res.json({ mensaje: 'Imagen subida exitosamente', imagen: result[0] });
+  } catch (error) {
+    console.error('Error subiendo imagen destino:', error);
+    res.status(500).json({ error: 'Error al subir imagen de destino' });
+  }
+};
+
+/**
+ * Eliminar imagen de destino
+ * DELETE /api/landing/destinos-imagenes/:id
+ */
+const eliminarImagenDestino = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await prisma.$queryRaw`
+      DELETE FROM tbl_destinos_imagenes WHERE id = ${parseInt(id)}
+      RETURNING id, ciudad, imagen_path as "imagenPath"
+    `;
+    if (!result || result.length === 0) return res.status(404).json({ error: 'Imagen no encontrada' });
+
+    await eliminarArchivoBanner(result[0].imagenPath);
+    await registrarAuditoria(req.user.id, 'DESTINO_IMAGEN_ELIMINADA', 'DESTINOS_IMAGENES', parseInt(id), { ciudad: result[0].ciudad });
+
+    res.json({ mensaje: 'Imagen eliminada exitosamente' });
+  } catch (error) {
+    console.error('Error eliminando imagen destino:', error);
+    res.status(500).json({ error: 'Error al eliminar imagen de destino' });
+  }
+};
+
+/**
+ * Subir banner de página destinos
+ * PUT /api/landing/destinos-banner
+ */
+const subirBannerDestinos = async (req, res) => {
+  try {
+    let imagenPath = null;
+    if (req.file) {
+      imagenPath = await procesarBannerFile(req.file, 'banner');
+    } else if (req.body.imagenBase64) {
+      imagenPath = await guardarBannerBase64(req.body.imagenBase64, 'banner');
+    }
+    if (!imagenPath) return res.status(400).json({ error: 'Se requiere una imagen' });
+
+    const anterior = await prisma.$queryRaw`
+      SELECT banner_destinos as "bannerDestinos" FROM tbl_configuracion_sistema WHERE activo = true LIMIT 1
+    `.catch(() => []);
+
+    await prisma.$executeRaw`
+      UPDATE tbl_configuracion_sistema SET banner_destinos = ${imagenPath}, date_time_modification = NOW() WHERE activo = true
+    `;
+
+    if (anterior?.[0]?.bannerDestinos) {
+      await eliminarArchivoBanner(anterior[0].bannerDestinos);
+    }
+
+    await registrarAuditoria(req.user.id, 'BANNER_DESTINOS_SUBIDO', 'CONFIGURACION', null, { imagenPath });
+
+    res.json({ mensaje: 'Banner subido exitosamente', bannerPath: imagenPath });
+  } catch (error) {
+    console.error('Error subiendo banner destinos:', error);
+    res.status(500).json({ error: 'Error al subir banner de destinos' });
+  }
+};
+
+/**
+ * Eliminar banner de página destinos
+ * DELETE /api/landing/destinos-banner
+ */
+const eliminarBannerDestinos = async (req, res) => {
+  try {
+    const result = await prisma.$queryRaw`
+      SELECT banner_destinos as "bannerDestinos" FROM tbl_configuracion_sistema WHERE activo = true LIMIT 1
+    `;
+    if (!result?.[0]?.bannerDestinos) return res.status(404).json({ error: 'No hay banner configurado' });
+
+    await prisma.$executeRaw`
+      UPDATE tbl_configuracion_sistema SET banner_destinos = NULL, date_time_modification = NOW() WHERE activo = true
+    `;
+    await eliminarArchivoBanner(result[0].bannerDestinos);
+
+    await registrarAuditoria(req.user.id, 'BANNER_DESTINOS_ELIMINADO', 'CONFIGURACION', null, {});
+
+    res.json({ mensaje: 'Banner eliminado exitosamente' });
+  } catch (error) {
+    console.error('Error eliminando banner destinos:', error);
+    res.status(500).json({ error: 'Error al eliminar banner de destinos' });
   }
 };
 
@@ -753,7 +1129,9 @@ module.exports = {
   getBannersPublicos,
   getGaleriaPublica,
   getConfigLandingPublica,
-  getServiciosPublicos,
+  getExperienciaIconosPublicos,
+  getDestinosImagenesPublico,
+  getDestinosBannerPublico,
   // Admin
   listarBanners,
   crearBanner,
@@ -764,6 +1142,15 @@ module.exports = {
   getConfigLandingAdmin,
   subirImagenExperiencia,
   eliminarImagenExperiencia,
-  getServiciosAdmin,
-  actualizarServicio
+  subirImagenFondoExperiencia,
+  eliminarImagenFondoExperiencia,
+  getExperienciaIconosAdmin,
+  crearExperienciaIcono,
+  actualizarExperienciaIcono,
+  eliminarExperienciaIcono,
+  getDestinosImagenesAdmin,
+  subirImagenDestino,
+  eliminarImagenDestino,
+  subirBannerDestinos,
+  eliminarBannerDestinos
 };
