@@ -106,7 +106,15 @@ const getDestinoBySlug = async (req, res) => {
         imagen_path as "imagenPath",
         precio_desde as "precioDesde",
         servicios_disponibles as "serviciosDisponibles",
-        orden
+        orden,
+        direccion_terminal as "direccionTerminal",
+        telefono_terminal as "telefonoTerminal",
+        horarios_atencion as "horariosAtencion",
+        altitud,
+        temperatura,
+        tiempo_viaje as "tiempoViaje",
+        imagen_atractivos as "imagenAtractivos",
+        descripcion_atractivos as "descripcionAtractivos"
       FROM tbl_destinos_publicos
       WHERE slug = ${slug} AND activo = true
     `;
@@ -117,17 +125,24 @@ const getDestinoBySlug = async (req, res) => {
 
     const destino = result[0];
 
+    // Jalar festividades automaticamente de tbl_festividades por ciudad del punto
     const festividades = await prisma.$queryRaw`
-      SELECT
-        id,
-        titulo,
-        descripcion,
-        fecha_inicio as "fechaInicio",
-        fecha_fin as "fechaFin",
-        orden
-      FROM tbl_festividades_destino
-      WHERE id_destino = ${destino.id} AND activo = true
-      ORDER BY orden ASC, id ASC
+      SELECT DISTINCT ON (f.id)
+        f.id,
+        f.titulo,
+        f.descripcion,
+        f.orden,
+        (
+          SELECT fi.imagen_path
+          FROM tbl_festividades_imagenes fi
+          WHERE fi.id_festividad = f.id
+          ORDER BY fi.orden ASC, fi.id ASC
+          LIMIT 1
+        ) as "imagenPath"
+      FROM tbl_festividades f
+      JOIN tbl_puntos p ON p.id = f.id_punto
+      WHERE f.activo = true AND p.ciudad = ${destino.nombre}
+      ORDER BY f.id DESC
     `;
 
     res.json({
@@ -160,6 +175,14 @@ const listar = async (req, res) => {
         servicios_disponibles as "serviciosDisponibles",
         orden,
         activo,
+        direccion_terminal as "direccionTerminal",
+        telefono_terminal as "telefonoTerminal",
+        horarios_atencion as "horariosAtencion",
+        altitud,
+        temperatura,
+        tiempo_viaje as "tiempoViaje",
+        imagen_atractivos as "imagenAtractivos",
+        descripcion_atractivos as "descripcionAtractivos",
         date_time_registration as "createdAt",
         date_time_modification as "updatedAt"
       FROM tbl_destinos_publicos
@@ -183,12 +206,16 @@ const listar = async (req, res) => {
  */
 const crear = async (req, res) => {
   try {
-    const { slug, nombre, subtitulo, descripcion, precioDesde, serviciosDisponibles, orden } = req.body;
+    const { slug, nombre, subtitulo, descripcion, precioDesde, serviciosDisponibles, orden, direccionTerminal, telefonoTerminal, horariosAtencion, altitud, temperatura, tiempoViaje, descripcionAtractivos } = req.body;
 
     let imagenPath = null;
+    let imagenAtractivos = null;
 
-    if (req.file) {
-      imagenPath = await procesarBannerFile(req.file, 'banner');
+    if (req.files?.imagen?.[0]) {
+      imagenPath = await procesarBannerFile(req.files.imagen[0], 'banner');
+    }
+    if (req.files?.imagenAtractivos?.[0]) {
+      imagenAtractivos = await procesarBannerFile(req.files.imagenAtractivos[0], 'banner');
     }
 
     await prisma.$executeRaw`
@@ -201,6 +228,14 @@ const crear = async (req, res) => {
         precio_desde,
         servicios_disponibles,
         orden,
+        direccion_terminal,
+        telefono_terminal,
+        horarios_atencion,
+        altitud,
+        temperatura,
+        tiempo_viaje,
+        imagen_atractivos,
+        descripcion_atractivos,
         activo,
         date_time_registration,
         date_time_modification
@@ -213,6 +248,14 @@ const crear = async (req, res) => {
         ${precioDesde ? parseFloat(precioDesde) : null},
         ${serviciosDisponibles || null},
         ${parseInt(orden) || 0},
+        ${direccionTerminal || null},
+        ${telefonoTerminal || null},
+        ${horariosAtencion || null},
+        ${altitud || null},
+        ${temperatura || null},
+        ${tiempoViaje || null},
+        ${imagenAtractivos},
+        ${descripcionAtractivos || null},
         true,
         NOW(),
         NOW()
@@ -231,6 +274,14 @@ const crear = async (req, res) => {
         servicios_disponibles as "serviciosDisponibles",
         orden,
         activo,
+        direccion_terminal as "direccionTerminal",
+        telefono_terminal as "telefonoTerminal",
+        horarios_atencion as "horariosAtencion",
+        altitud,
+        temperatura,
+        tiempo_viaje as "tiempoViaje",
+        imagen_atractivos as "imagenAtractivos",
+        descripcion_atractivos as "descripcionAtractivos",
         date_time_registration as "createdAt",
         date_time_modification as "updatedAt"
       FROM tbl_destinos_publicos
@@ -264,10 +315,10 @@ const crear = async (req, res) => {
 const actualizar = async (req, res) => {
   try {
     const { id } = req.params;
-    const { slug, nombre, subtitulo, descripcion, precioDesde, serviciosDisponibles, orden } = req.body;
+    const { slug, nombre, subtitulo, descripcion, precioDesde, serviciosDisponibles, orden, direccionTerminal, telefonoTerminal, horariosAtencion, altitud, temperatura, tiempoViaje, descripcionAtractivos } = req.body;
 
     const destinoActual = await prisma.$queryRaw`
-      SELECT imagen_path as "imagenPath"
+      SELECT imagen_path as "imagenPath", imagen_atractivos as "imagenAtractivos"
       FROM tbl_destinos_publicos
       WHERE id = ${parseInt(id)}
     `;
@@ -277,10 +328,15 @@ const actualizar = async (req, res) => {
     }
 
     let imagenPath = destinoActual[0].imagenPath;
+    let imagenAtractivos = destinoActual[0].imagenAtractivos;
 
-    if (req.file) {
+    if (req.files?.imagen?.[0]) {
       await eliminarArchivoBanner(destinoActual[0].imagenPath);
-      imagenPath = await procesarBannerFile(req.file, 'banner');
+      imagenPath = await procesarBannerFile(req.files.imagen[0], 'banner');
+    }
+    if (req.files?.imagenAtractivos?.[0]) {
+      await eliminarArchivoBanner(destinoActual[0].imagenAtractivos);
+      imagenAtractivos = await procesarBannerFile(req.files.imagenAtractivos[0], 'banner');
     }
 
     const result = await prisma.$queryRaw`
@@ -293,6 +349,14 @@ const actualizar = async (req, res) => {
         precio_desde = ${precioDesde ? parseFloat(precioDesde) : null},
         servicios_disponibles = ${serviciosDisponibles || null},
         orden = ${parseInt(orden) || 0},
+        direccion_terminal = ${direccionTerminal || null},
+        telefono_terminal = ${telefonoTerminal || null},
+        horarios_atencion = ${horariosAtencion || null},
+        altitud = ${altitud || null},
+        temperatura = ${temperatura || null},
+        tiempo_viaje = ${tiempoViaje || null},
+        imagen_atractivos = ${imagenAtractivos},
+        descripcion_atractivos = ${descripcionAtractivos || null},
         date_time_modification = NOW()
       WHERE id = ${parseInt(id)}
       RETURNING
@@ -306,6 +370,14 @@ const actualizar = async (req, res) => {
         servicios_disponibles as "serviciosDisponibles",
         orden,
         activo,
+        direccion_terminal as "direccionTerminal",
+        telefono_terminal as "telefonoTerminal",
+        horarios_atencion as "horariosAtencion",
+        altitud,
+        temperatura,
+        tiempo_viaje as "tiempoViaje",
+        imagen_atractivos as "imagenAtractivos",
+        descripcion_atractivos as "descripcionAtractivos",
         date_time_registration as "createdAt",
         date_time_modification as "updatedAt"
     `;
@@ -337,7 +409,7 @@ const eliminar = async (req, res) => {
     const { id } = req.params;
 
     const destino = await prisma.$queryRaw`
-      SELECT imagen_path as "imagenPath"
+      SELECT imagen_path as "imagenPath", imagen_atractivos as "imagenAtractivos"
       FROM tbl_destinos_publicos
       WHERE id = ${parseInt(id)}
     `;
@@ -349,9 +421,12 @@ const eliminar = async (req, res) => {
     if (destino[0].imagenPath) {
       await eliminarArchivoBanner(destino[0].imagenPath);
     }
+    if (destino[0].imagenAtractivos) {
+      await eliminarArchivoBanner(destino[0].imagenAtractivos);
+    }
 
     await prisma.$executeRaw`
-      DELETE FROM tbl_destinos_publicos_publicos WHERE id = ${parseInt(id)}
+      DELETE FROM tbl_destinos_publicos WHERE id = ${parseInt(id)}
     `;
 
     await registrarAuditoria(

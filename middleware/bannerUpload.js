@@ -172,8 +172,25 @@ const getUploadDir = (tipo) => {
   return folderMap[tipo] || BANNERS_DIR;
 };
 
+/**
+ * Middleware que maneja errores de multer y devuelve 400 con mensaje claro
+ */
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'El archivo excede el tamaño máximo permitido (5MB)' });
+    }
+    return res.status(400).json({ error: `Error de archivo: ${err.message}` });
+  }
+  if (err && err.message) {
+    return res.status(400).json({ error: err.message });
+  }
+  next(err);
+};
+
 module.exports = {
   uploadBanner,
+  handleMulterError,
   procesarBannerFile,
   eliminarArchivoBanner,
   guardarBannerBase64,

@@ -301,11 +301,61 @@ const getFestividadesPublicas = async (req, res) => {
   }
 };
 
+/**
+ * Obtener una festividad por ID (público)
+ * GET /api/public/festividades/:id
+ */
+const getFestividadById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const festividades = await prisma.$queryRaw`
+      SELECT
+        f.id,
+        f.titulo,
+        f.descripcion,
+        f.orden,
+        p.id as "puntoId",
+        p.nombre as "puntoNombre",
+        p.ciudad as "puntoCiudad"
+      FROM tbl_festividades f
+      JOIN tbl_puntos p ON p.id = f.id_punto
+      WHERE f.id = ${parseInt(id)} AND f.activo = true AND p.estado = 1
+    `;
+
+    if (!festividades || festividades.length === 0) {
+      return res.status(404).json({ error: 'Festividad no encontrada' });
+    }
+
+    const imagenes = await prisma.$queryRaw`
+      SELECT
+        id,
+        id_festividad as "idFestividad",
+        imagen_path as "imagenPath",
+        orden
+      FROM tbl_festividades_imagenes
+      WHERE id_festividad = ${parseInt(id)}
+      ORDER BY orden ASC, id ASC
+    `;
+
+    res.json({
+      festividad: {
+        ...festividades[0],
+        imagenes: imagenes || []
+      }
+    });
+  } catch (error) {
+    console.error('Error obteniendo festividad:', error);
+    res.status(500).json({ error: 'Error al obtener festividad' });
+  }
+};
+
 module.exports = {
   listar,
   crear,
   actualizar,
   eliminar,
   toggleActivo,
-  getFestividadesPublicas
+  getFestividadesPublicas,
+  getFestividadById
 };

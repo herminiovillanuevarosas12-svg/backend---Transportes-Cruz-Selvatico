@@ -1,6 +1,6 @@
 /**
  * Contenido Routes
- * Rutas admin para gestion de contenido publico (servicios, destinos, FAQ, promociones, contacto, paginas)
+ * Rutas admin para gestion de contenido publico (servicios, destinos, FAQ, promociones, contacto)
  */
 
 const express = require('express');
@@ -9,10 +9,10 @@ const destinosPublicosController = require('../controllers/destinosPublicosContr
 const preguntasFrecuentesController = require('../controllers/preguntasFrecuentesController');
 const promocionesController = require('../controllers/promocionesController');
 const contactoController = require('../controllers/contactoController');
-const paginasContenidoController = require('../controllers/paginasContenidoController');
 const encomiendasInfoController = require('../controllers/encomiendasInfoController');
+const infoViajeController = require('../controllers/infoViajeController');
 const { verifyToken, requirePermission } = require('../middleware/authMiddleware');
-const { uploadBanner } = require('../middleware/bannerUpload');
+const { uploadBanner, handleMulterError } = require('../middleware/bannerUpload');
 
 // Todas las rutas requieren autenticacion
 router.use(verifyToken);
@@ -24,12 +24,12 @@ router.get('/destinos',
 
 router.post('/destinos',
   requirePermission('LANDING_EDITAR'),
-  uploadBanner.single('imagen'),
+  uploadBanner.fields([{ name: 'imagen', maxCount: 1 }, { name: 'imagenAtractivos', maxCount: 1 }]),
   destinosPublicosController.crear);
 
 router.put('/destinos/:id',
   requirePermission('LANDING_EDITAR'),
-  uploadBanner.single('imagen'),
+  uploadBanner.fields([{ name: 'imagen', maxCount: 1 }, { name: 'imagenAtractivos', maxCount: 1 }]),
   destinosPublicosController.actualizar);
 
 router.delete('/destinos/:id',
@@ -175,23 +175,30 @@ router.patch('/nosotros/valores/:id/toggle',
   requirePermission('LANDING_EDITAR'),
   nosotrosController.toggleValor);
 
-// === PAGINAS DE CONTENIDO ===
-router.get('/paginas',
+// === INFO VIAJE ITEMS ===
+router.get('/info-viaje-items',
   requirePermission('LANDING_VER'),
-  paginasContenidoController.listar);
+  infoViajeController.listar);
 
-router.post('/paginas',
+router.post('/info-viaje-items',
   requirePermission('LANDING_EDITAR'),
   uploadBanner.single('imagen'),
-  paginasContenidoController.crear);
+  infoViajeController.crear);
 
-router.put('/paginas/:id',
+router.put('/info-viaje-items/:id',
   requirePermission('LANDING_EDITAR'),
   uploadBanner.single('imagen'),
-  paginasContenidoController.actualizar);
+  infoViajeController.actualizar);
 
-router.delete('/paginas/:id',
+router.delete('/info-viaje-items/:id',
   requirePermission('LANDING_EDITAR'),
-  paginasContenidoController.eliminar);
+  infoViajeController.eliminar);
+
+router.patch('/info-viaje-items/:id/toggle',
+  requirePermission('LANDING_EDITAR'),
+  infoViajeController.toggleActivo);
+
+// Manejo global de errores de multer
+router.use(handleMulterError);
 
 module.exports = router;

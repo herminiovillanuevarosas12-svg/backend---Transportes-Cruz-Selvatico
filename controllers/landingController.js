@@ -933,27 +933,8 @@ const eliminarExperienciaIcono = async (req, res) => {
 };
 
 // ============================================
-// DESTINOS IMAGENES
+// DESTINOS BANNER
 // ============================================
-
-/**
- * Obtener imágenes de destinos (público)
- * GET /api/public/destinos-imagenes
- */
-const getDestinosImagenesPublico = async (req, res) => {
-  try {
-    const imagenes = await prisma.$queryRaw`
-      SELECT id, ciudad, imagen_path as "imagenPath"
-      FROM tbl_destinos_imagenes
-      ORDER BY ciudad ASC
-    `;
-    res.json({ imagenes });
-  } catch (error) {
-    if (error.code === '42P01') return res.json({ imagenes: [] });
-    console.error('Error obteniendo imágenes destinos:', error);
-    res.status(500).json({ error: 'Error al obtener imágenes de destinos' });
-  }
-};
 
 /**
  * Obtener banner de destinos (público)
@@ -971,96 +952,6 @@ const getDestinosBannerPublico = async (req, res) => {
   } catch (error) {
     console.error('Error obteniendo banner destinos:', error);
     res.json({ banner: null });
-  }
-};
-
-/**
- * Listar imágenes de destinos (admin)
- * GET /api/landing/destinos-imagenes
- */
-const getDestinosImagenesAdmin = async (req, res) => {
-  try {
-    const imagenes = await prisma.$queryRaw`
-      SELECT id, ciudad, imagen_path as "imagenPath",
-             date_time_registration as "fechaCreacion"
-      FROM tbl_destinos_imagenes
-      ORDER BY ciudad ASC
-    `;
-    res.json({ imagenes });
-  } catch (error) {
-    if (error.code === '42P01') return res.json({ imagenes: [] });
-    console.error('Error obteniendo imágenes destinos admin:', error);
-    res.status(500).json({ error: 'Error al obtener imágenes de destinos' });
-  }
-};
-
-/**
- * Subir/actualizar imagen de destino
- * POST /api/landing/destinos-imagenes
- * Body: { ciudad } + file/imagenBase64
- */
-const subirImagenDestino = async (req, res) => {
-  try {
-    const { ciudad } = req.body;
-    if (!ciudad) return res.status(400).json({ error: 'Ciudad es requerida' });
-
-    let imagenPath = null;
-    if (req.file) {
-      imagenPath = await procesarBannerFile(req.file, 'banner');
-    } else if (req.body.imagenBase64) {
-      imagenPath = await guardarBannerBase64(req.body.imagenBase64, 'banner');
-    }
-    if (!imagenPath) return res.status(400).json({ error: 'Se requiere una imagen' });
-
-    // Obtener imagen anterior si existe
-    const anterior = await prisma.$queryRaw`
-      SELECT imagen_path as "imagenPath" FROM tbl_destinos_imagenes WHERE ciudad = ${ciudad} LIMIT 1
-    `.catch(() => []);
-
-    // Upsert
-    const result = await prisma.$queryRaw`
-      INSERT INTO tbl_destinos_imagenes (ciudad, imagen_path, date_time_registration, date_time_modification)
-      VALUES (${ciudad}, ${imagenPath}, NOW(), NOW())
-      ON CONFLICT (ciudad) DO UPDATE SET
-        imagen_path = ${imagenPath},
-        date_time_modification = NOW()
-      RETURNING id, ciudad, imagen_path as "imagenPath"
-    `;
-
-    // Eliminar imagen anterior de S3/local
-    if (anterior?.[0]?.imagenPath) {
-      await eliminarArchivoBanner(anterior[0].imagenPath);
-    }
-
-    await registrarAuditoria(req.user.id, 'DESTINO_IMAGEN_SUBIDA', 'DESTINOS_IMAGENES', result[0]?.id, { ciudad });
-
-    res.json({ mensaje: 'Imagen subida exitosamente', imagen: result[0] });
-  } catch (error) {
-    console.error('Error subiendo imagen destino:', error);
-    res.status(500).json({ error: 'Error al subir imagen de destino' });
-  }
-};
-
-/**
- * Eliminar imagen de destino
- * DELETE /api/landing/destinos-imagenes/:id
- */
-const eliminarImagenDestino = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await prisma.$queryRaw`
-      DELETE FROM tbl_destinos_imagenes WHERE id = ${parseInt(id)}
-      RETURNING id, ciudad, imagen_path as "imagenPath"
-    `;
-    if (!result || result.length === 0) return res.status(404).json({ error: 'Imagen no encontrada' });
-
-    await eliminarArchivoBanner(result[0].imagenPath);
-    await registrarAuditoria(req.user.id, 'DESTINO_IMAGEN_ELIMINADA', 'DESTINOS_IMAGENES', parseInt(id), { ciudad: result[0].ciudad });
-
-    res.json({ mensaje: 'Imagen eliminada exitosamente' });
-  } catch (error) {
-    console.error('Error eliminando imagen destino:', error);
-    res.status(500).json({ error: 'Error al eliminar imagen de destino' });
   }
 };
 
@@ -1130,7 +1021,6 @@ module.exports = {
   getGaleriaPublica,
   getConfigLandingPublica,
   getExperienciaIconosPublicos,
-  getDestinosImagenesPublico,
   getDestinosBannerPublico,
   // Admin
   listarBanners,
@@ -1148,9 +1038,6 @@ module.exports = {
   crearExperienciaIcono,
   actualizarExperienciaIcono,
   eliminarExperienciaIcono,
-  getDestinosImagenesAdmin,
-  subirImagenDestino,
-  eliminarImagenDestino,
   subirBannerDestinos,
   eliminarBannerDestinos
 };

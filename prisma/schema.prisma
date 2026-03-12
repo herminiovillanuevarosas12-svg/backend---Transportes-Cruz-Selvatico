@@ -76,26 +76,28 @@ model Punto {
 }
 
 model Usuario {
-  id                   Int                   @id @default(autoincrement())
-  nombres              String                @db.VarChar(150)
-  correo               String                @unique @db.VarChar(100)
-  contrasena           String                @db.VarChar(255)
-  idRol                Int                   @map("id_rol")
-  idPunto              Int?                  @map("id_punto")
-  estado               Int                   @default(1)
-  userIdRegistration   Int?                  @map("user_id_registration")
-  dateTimeRegistration DateTime              @default(now()) @map("date_time_registration") @db.Timestamptz(6)
-  userIdModification   Int?                  @map("user_id_modification")
-  dateTimeModification DateTime?             @map("date_time_modification") @db.Timestamptz(6)
-  archivosMedia        ArchivoMedia[]
-  encomiendasCreadas   Encomienda[]
-  eventosEncomienda    EventoEncomienda[]
-  tbl_landing_banners  tbl_landing_banners[]
-  logsAuditoria        LogAuditoria[]
-  ticketsAnulados      Ticket[]              @relation("TicketAnulador")
-  ticketsVendidos      Ticket[]              @relation("TicketVendedor")
-  punto                Punto?                @relation(fields: [idPunto], references: [id])
-  rol                  Rol                   @relation(fields: [idRol], references: [id])
+  id                                                                           Int                    @id @default(autoincrement())
+  nombres                                                                      String                 @db.VarChar(150)
+  correo                                                                       String                 @unique @db.VarChar(100)
+  contrasena                                                                   String                 @db.VarChar(255)
+  idRol                                                                        Int                    @map("id_rol")
+  idPunto                                                                      Int?                   @map("id_punto")
+  estado                                                                       Int                    @default(1)
+  userIdRegistration                                                           Int?                   @map("user_id_registration")
+  dateTimeRegistration                                                         DateTime               @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification                                                           Int?                   @map("user_id_modification")
+  dateTimeModification                                                         DateTime?              @map("date_time_modification") @db.Timestamptz(6)
+  archivosMedia                                                                ArchivoMedia[]
+  encomiendasCreadas                                                           Encomienda[]
+  eventosEncomienda                                                            EventoEncomienda[]
+  tbl_info_viaje_items_tbl_info_viaje_items_user_id_modificationTotbl_usuarios tbl_info_viaje_items[] @relation("tbl_info_viaje_items_user_id_modificationTotbl_usuarios")
+  tbl_info_viaje_items_tbl_info_viaje_items_user_id_registrationTotbl_usuarios tbl_info_viaje_items[] @relation("tbl_info_viaje_items_user_id_registrationTotbl_usuarios")
+  tbl_landing_banners                                                          tbl_landing_banners[]
+  logsAuditoria                                                                LogAuditoria[]
+  ticketsAnulados                                                              Ticket[]               @relation("TicketAnulador")
+  ticketsVendidos                                                              Ticket[]               @relation("TicketVendedor")
+  punto                                                                        Punto?                 @relation(fields: [idPunto], references: [id])
+  rol                                                                          Rol                    @relation(fields: [idRol], references: [id])
 
   @@map("tbl_usuarios")
 }
@@ -401,6 +403,10 @@ model tbl_configuracion_sistema {
   nosotros_vision_texto           String?
   nosotros_vision_icono           String?   @default("Route") @db.VarChar(50)
   nosotros_valores_titulo         String?   @default("Valores institucionales") @db.VarChar(200)
+  banner_destinos                 String?
+  info_viaje_hero_imagen          String?   @db.VarChar(500)
+  info_viaje_titulo               String?   @default("Info para tu viaje") @db.VarChar(200)
+  info_viaje_subtitulo            String?   @default("Información") @db.VarChar(300)
 }
 
 model tbl_comprobante_items {
@@ -784,6 +790,11 @@ model tbl_destinos_publicos {
   date_time_registration   DateTime?                  @default(now()) @db.Timestamptz(6)
   user_id_modification     Int?
   date_time_modification   DateTime?                  @db.Timestamptz(6)
+  altitud                  String?                    @db.VarChar(100)
+  temperatura              String?                    @db.VarChar(100)
+  tiempo_viaje             String?                    @db.VarChar(100)
+  imagen_atractivos        String?                    @db.VarChar(500)
+  descripcion_atractivos   String?
   tbl_festividades_destino tbl_festividades_destino[]
 
   @@index([activo, orden], map: "idx_destinos_publicos_activo")
@@ -807,23 +818,6 @@ model tbl_festividades_destino {
 
   @@index([activo], map: "idx_festividades_destino_activo")
   @@index([id_destino], map: "idx_festividades_destino_destino")
-}
-
-model tbl_paginas_contenido {
-  id                     Int       @id @default(autoincrement())
-  slug                   String    @unique @db.VarChar(100)
-  titulo                 String    @db.VarChar(200)
-  subtitulo              String?   @db.VarChar(300)
-  contenido              String?
-  imagen_hero_path       String?   @db.VarChar(500)
-  meta_descripcion       String?   @db.VarChar(300)
-  activo                 Boolean   @default(true)
-  user_id_registration   Int?
-  date_time_registration DateTime? @default(now()) @db.Timestamptz(6)
-  user_id_modification   Int?
-  date_time_modification DateTime? @db.Timestamptz(6)
-
-  @@index([slug], map: "idx_paginas_contenido_slug")
 }
 
 model tbl_preguntas_frecuentes {
@@ -880,6 +874,32 @@ model tbl_servicios_transporte {
 
   @@index([activo, orden], map: "idx_servicios_transporte_activo")
   @@index([slug], map: "idx_servicios_transporte_slug")
+}
+
+model tbl_destinos_imagenes {
+  id                     Int       @id @default(autoincrement())
+  ciudad                 String    @unique @db.VarChar(200)
+  imagen_path            String
+  date_time_registration DateTime? @default(now()) @db.Timestamp(6)
+  date_time_modification DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model tbl_info_viaje_items {
+  id                                                                   Int       @id @default(autoincrement())
+  titulo                                                               String    @db.VarChar(200)
+  descripcion                                                          String?
+  imagen_path                                                          String?   @db.VarChar(500)
+  icono                                                                String?   @default("Info") @db.VarChar(100)
+  orden                                                                Int?      @default(0)
+  activo                                                               Boolean?  @default(true)
+  user_id_registration                                                 Int?
+  date_time_registration                                               DateTime? @default(now()) @db.Timestamptz(6)
+  user_id_modification                                                 Int?
+  date_time_modification                                               DateTime? @db.Timestamptz(6)
+  tbl_usuarios_tbl_info_viaje_items_user_id_modificationTotbl_usuarios Usuario?  @relation("tbl_info_viaje_items_user_id_modificationTotbl_usuarios", fields: [user_id_modification], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tbl_usuarios_tbl_info_viaje_items_user_id_registrationTotbl_usuarios Usuario?  @relation("tbl_info_viaje_items_user_id_registrationTotbl_usuarios", fields: [user_id_registration], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([activo, orden], map: "idx_info_viaje_items_activo")
 }
 
 enum TipoPunto {

@@ -7,10 +7,11 @@ const express = require('express');
 const router = express.Router();
 const landingController = require('../controllers/landingController');
 const encomiendasInfoController = require('../controllers/encomiendasInfoController');
+const infoViajeController = require('../controllers/infoViajeController');
 const festividadesController = require('../controllers/festividadesController');
 const festividadesImagenesController = require('../controllers/festividadesImagenesController');
 const { verifyToken, requirePermission } = require('../middleware/authMiddleware');
-const { uploadBanner } = require('../middleware/bannerUpload');
+const { uploadBanner, handleMulterError } = require('../middleware/bannerUpload');
 
 // Todas las rutas requieren autenticación
 router.use(verifyToken);
@@ -135,30 +136,34 @@ router.delete(
 );
 
 /**
- * DESTINOS IMAGENES
+ * INFO VIAJE
  */
 
-// GET /api/landing/destinos-imagenes - Listar imágenes destinos (admin)
-router.get(
-  '/destinos-imagenes',
-  requirePermission('LANDING_VER'),
-  landingController.getDestinosImagenesAdmin
-);
-
-// POST /api/landing/destinos-imagenes - Subir imagen destino
-router.post(
-  '/destinos-imagenes',
+// PUT /api/landing/config/imagen-info-viaje-hero - Subir/actualizar imagen hero info viaje
+router.put(
+  '/config/imagen-info-viaje-hero',
   requirePermission('LANDING_EDITAR'),
   uploadBanner.single('imagen'),
-  landingController.subirImagenDestino
+  infoViajeController.subirHeroImagen
 );
 
-// DELETE /api/landing/destinos-imagenes/:id - Eliminar imagen destino
+// DELETE /api/landing/config/imagen-info-viaje-hero - Eliminar imagen hero info viaje
 router.delete(
-  '/destinos-imagenes/:id',
+  '/config/imagen-info-viaje-hero',
   requirePermission('LANDING_EDITAR'),
-  landingController.eliminarImagenDestino
+  infoViajeController.eliminarHeroImagen
 );
+
+// PUT /api/landing/config/info-viaje - Actualizar titulo y subtitulo del hero
+router.put(
+  '/config/info-viaje',
+  requirePermission('LANDING_EDITAR'),
+  infoViajeController.actualizarConfig
+);
+
+/**
+ * DESTINOS BANNER
+ */
 
 // PUT /api/landing/destinos-banner - Subir banner destinos
 router.put(
@@ -278,5 +283,8 @@ router.delete(
   requirePermission('LANDING_EDITAR'),
   landingController.eliminarExperienciaIcono
 );
+
+// Manejo global de errores de multer para todas las rutas de este router
+router.use(handleMulterError);
 
 module.exports = router;

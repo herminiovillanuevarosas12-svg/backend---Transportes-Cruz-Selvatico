@@ -12,8 +12,8 @@ const destinosPublicosController = require('../controllers/destinosPublicosContr
 const preguntasFrecuentesController = require('../controllers/preguntasFrecuentesController');
 const promocionesController = require('../controllers/promocionesController');
 const contactoController = require('../controllers/contactoController');
-const paginasContenidoController = require('../controllers/paginasContenidoController');
 const encomiendasInfoController = require('../controllers/encomiendasInfoController');
+const infoViajeController = require('../controllers/infoViajeController');
 const prisma = require('../config/prisma');
 const { formatTimeForAPI } = require('../utils/dateUtils');
 
@@ -35,8 +35,8 @@ router.get('/experiencia-iconos', landingController.getExperienciaIconosPublicos
 // GET /api/public/festividades - Obtener festividades activas (público)
 router.get('/festividades', festividadesController.getFestividadesPublicas);
 
-// GET /api/public/destinos-imagenes - Obtener imágenes de destinos (público)
-router.get('/destinos-imagenes', landingController.getDestinosImagenesPublico);
+// GET /api/public/festividades/:id - Obtener festividad por ID (público)
+router.get('/festividades/:id', festividadesController.getFestividadById);
 
 // GET /api/public/destinos-banner - Obtener banner de destinos (público)
 router.get('/destinos-banner', landingController.getDestinosBannerPublico);
@@ -141,7 +141,7 @@ router.get('/encomiendas-ventajas', encomiendasInfoController.getVentajasPublica
 const nosotrosController = require('../controllers/nosotrosController');
 router.get('/nosotros', nosotrosController.getNosotrosPublico);
 
-// === PAGINAS DE CONTENIDO (publico) ===
-router.get('/paginas/:slug', paginasContenidoController.getPaginaBySlug);
+// === INFO VIAJE (publico) ===
+router.get('/info-viaje-items', infoViajeController.getItemsPublicos);
 
 module.exports = router;
