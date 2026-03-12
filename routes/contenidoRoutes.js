@@ -137,6 +137,29 @@ router.patch('/encomiendas-ventajas/:id/toggle',
   requirePermission('LANDING_EDITAR'),
   encomiendasInfoController.toggleActivo);
 
+// === ENCOMIENDAS SECCIONES (Servicios/Flota) ===
+router.get('/encomiendas-secciones',
+  requirePermission('LANDING_VER'),
+  encomiendasInfoController.listarSecciones);
+
+router.post('/encomiendas-secciones',
+  requirePermission('LANDING_EDITAR'),
+  uploadBanner.single('imagen'),
+  encomiendasInfoController.crearSeccion);
+
+router.put('/encomiendas-secciones/:id',
+  requirePermission('LANDING_EDITAR'),
+  uploadBanner.single('imagen'),
+  encomiendasInfoController.actualizarSeccion);
+
+router.delete('/encomiendas-secciones/:id',
+  requirePermission('LANDING_EDITAR'),
+  encomiendasInfoController.eliminarSeccion);
+
+router.patch('/encomiendas-secciones/:id/toggle',
+  requirePermission('LANDING_EDITAR'),
+  encomiendasInfoController.toggleSeccion);
+
 // === NOSOTROS ===
 const nosotrosController = require('../controllers/nosotrosController');
 

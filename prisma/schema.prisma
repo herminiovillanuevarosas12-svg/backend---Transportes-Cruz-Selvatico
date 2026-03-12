@@ -135,7 +135,6 @@ model Ruta {
   viajes               Viaje[]
 
   @@unique([idPuntoOrigen, idPuntoDestino, idTipoCarro], map: "tbl_rutas_origen_destino_tipo_key")
-  @@unique([idPuntoOrigen, idPuntoDestino])
   @@index([idTipoCarro], map: "idx_rutas_tipo_carro")
   @@map("tbl_rutas")
 }
@@ -900,6 +899,22 @@ model tbl_info_viaje_items {
   tbl_usuarios_tbl_info_viaje_items_user_id_registrationTotbl_usuarios Usuario?  @relation("tbl_info_viaje_items_user_id_registrationTotbl_usuarios", fields: [user_id_registration], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([activo, orden], map: "idx_info_viaje_items_activo")
+}
+
+model tbl_encomiendas_secciones {
+  id                     Int       @id @default(autoincrement())
+  tipo                   String    @default("SERVICIOS") @db.VarChar(20)
+  titulo                 String    @db.VarChar(200)
+  descripcion            String?
+  imagen_path            String?   @db.VarChar(500)
+  orden                  Int?      @default(0)
+  activo                 Boolean?  @default(true)
+  user_id_registration   Int?
+  date_time_registration DateTime? @default(now()) @db.Timestamptz(6)
+  user_id_modification   Int?
+  date_time_modification DateTime? @db.Timestamptz(6)
+
+  @@index([tipo, activo, orden], map: "idx_encomiendas_secciones_tipo_activo")
 }
 
 enum TipoPunto {

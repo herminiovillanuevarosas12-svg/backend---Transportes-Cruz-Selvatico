@@ -136,6 +136,7 @@ router.post('/contacto', contactoController.enviarMensaje);
 
 // === ENCOMIENDAS INFO (publico) ===
 router.get('/encomiendas-ventajas', encomiendasInfoController.getVentajasPublicas);
+router.get('/encomiendas-secciones', encomiendasInfoController.getSeccionesPublicas);
 
 // === NOSOTROS (publico) ===
 const nosotrosController = require('../controllers/nosotrosController');
