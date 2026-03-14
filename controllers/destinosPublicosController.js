@@ -107,6 +107,7 @@ const getDestinoBySlug = async (req, res) => {
         precio_desde as "precioDesde",
         servicios_disponibles as "serviciosDisponibles",
         orden,
+        id_punto as "idPunto",
         direccion_terminal as "direccionTerminal",
         telefono_terminal as "telefonoTerminal",
         horarios_atencion as "horariosAtencion",
@@ -125,8 +126,8 @@ const getDestinoBySlug = async (req, res) => {
 
     const destino = result[0];
 
-    // Jalar festividades automaticamente de tbl_festividades por ciudad del punto
-    const festividades = await prisma.$queryRaw`
+    // Jalar festividades por id_punto (vinculo por ID, no por string)
+    const festividades = destino.idPunto ? await prisma.$queryRaw`
       SELECT DISTINCT ON (f.id)
         f.id,
         f.titulo,
@@ -140,10 +141,9 @@ const getDestinoBySlug = async (req, res) => {
           LIMIT 1
         ) as "imagenPath"
       FROM tbl_festividades f
-      JOIN tbl_puntos p ON p.id = f.id_punto
-      WHERE f.activo = true AND p.ciudad = ${destino.nombre}
+      WHERE f.activo = true AND f.id_punto = ${destino.idPunto}
       ORDER BY f.id DESC
-    `;
+    ` : [];
 
     res.json({
       destino: {
@@ -175,6 +175,7 @@ const listar = async (req, res) => {
         servicios_disponibles as "serviciosDisponibles",
         orden,
         activo,
+        id_punto as "idPunto",
         direccion_terminal as "direccionTerminal",
         telefono_terminal as "telefonoTerminal",
         horarios_atencion as "horariosAtencion",
@@ -206,7 +207,17 @@ const listar = async (req, res) => {
  */
 const crear = async (req, res) => {
   try {
-    const { slug, nombre, subtitulo, descripcion, precioDesde, serviciosDisponibles, orden, direccionTerminal, telefonoTerminal, horariosAtencion, altitud, temperatura, tiempoViaje, descripcionAtractivos } = req.body;
+    const { slug, nombre, subtitulo, descripcion, precioDesde, serviciosDisponibles, orden, direccionTerminal, telefonoTerminal, horariosAtencion, altitud, temperatura, tiempoViaje, descripcionAtractivos, idPunto } = req.body;
+
+    // Derivar nombre del punto si se envió idPunto
+    let nombreFinal = nombre;
+    const idPuntoInt = idPunto ? parseInt(idPunto) : null;
+    if (idPuntoInt) {
+      const punto = await prisma.$queryRaw`SELECT ciudad FROM tbl_puntos WHERE id = ${idPuntoInt}`;
+      if (punto.length > 0) {
+        nombreFinal = punto[0].ciudad.trim();
+      }
+    }
 
     let imagenPath = null;
     let imagenAtractivos = null;
@@ -222,6 +233,7 @@ const crear = async (req, res) => {
       INSERT INTO tbl_destinos_publicos (
         slug,
         nombre,
+        id_punto,
         subtitulo,
         descripcion,
         imagen_path,
@@ -241,7 +253,8 @@ const crear = async (req, res) => {
         date_time_modification
       ) VALUES (
         ${slug},
-        ${nombre},
+        ${nombreFinal},
+        ${idPuntoInt},
         ${subtitulo || null},
         ${descripcion || null},
         ${imagenPath},
@@ -267,6 +280,7 @@ const crear = async (req, res) => {
         id,
         slug,
         nombre,
+        id_punto as "idPunto",
         subtitulo,
         descripcion,
         imagen_path as "imagenPath",
@@ -315,7 +329,17 @@ const crear = async (req, res) => {
 const actualizar = async (req, res) => {
   try {
     const { id } = req.params;
-    const { slug, nombre, subtitulo, descripcion, precioDesde, serviciosDisponibles, orden, direccionTerminal, telefonoTerminal, horariosAtencion, altitud, temperatura, tiempoViaje, descripcionAtractivos } = req.body;
+    const { slug, nombre, subtitulo, descripcion, precioDesde, serviciosDisponibles, orden, direccionTerminal, telefonoTerminal, horariosAtencion, altitud, temperatura, tiempoViaje, descripcionAtractivos, idPunto } = req.body;
+
+    // Derivar nombre del punto si se envió idPunto
+    let nombreFinal = nombre;
+    const idPuntoInt = idPunto ? parseInt(idPunto) : null;
+    if (idPuntoInt) {
+      const punto = await prisma.$queryRaw`SELECT ciudad FROM tbl_puntos WHERE id = ${idPuntoInt}`;
+      if (punto.length > 0) {
+        nombreFinal = punto[0].ciudad.trim();
+      }
+    }
 
     const destinoActual = await prisma.$queryRaw`
       SELECT imagen_path as "imagenPath", imagen_atractivos as "imagenAtractivos"
@@ -342,7 +366,8 @@ const actualizar = async (req, res) => {
     const result = await prisma.$queryRaw`
       UPDATE tbl_destinos_publicos SET
         slug = ${slug},
-        nombre = ${nombre},
+        nombre = ${nombreFinal},
+        id_punto = ${idPuntoInt},
         subtitulo = ${subtitulo || null},
         descripcion = ${descripcion || null},
         imagen_path = ${imagenPath},
@@ -363,6 +388,7 @@ const actualizar = async (req, res) => {
         id,
         slug,
         nombre,
+        id_punto as "idPunto",
         subtitulo,
         descripcion,
         imagen_path as "imagenPath",

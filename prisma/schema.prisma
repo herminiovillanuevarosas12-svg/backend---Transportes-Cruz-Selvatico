@@ -54,23 +54,24 @@ model RolPermiso {
 }
 
 model Punto {
-  id                   Int                @id @default(autoincrement())
-  nombre               String             @db.VarChar(100)
-  tipo                 TipoPunto
-  ciudad               String             @db.VarChar(100)
-  direccion            String?            @db.VarChar(255)
-  estado               Int                @default(1)
-  userIdRegistration   Int?               @map("user_id_registration")
-  dateTimeRegistration DateTime           @default(now()) @map("date_time_registration") @db.Timestamptz(6)
-  userIdModification   Int?               @map("user_id_modification")
-  dateTimeModification DateTime?          @map("date_time_modification") @db.Timestamptz(6)
-  encomiendasDestino   Encomienda[]       @relation("EncomiendaDestino")
-  encomiendasOrigen    Encomienda[]       @relation("EncomiendaOrigen")
-  eventosEncomienda    EventoEncomienda[]
-  tbl_festividades     tbl_festividades[]
-  rutasDestino         Ruta[]             @relation("RutaDestino")
-  rutasOrigen          Ruta[]             @relation("RutaOrigen")
-  usuarios             Usuario[]
+  id                    Int                     @id @default(autoincrement())
+  nombre                String                  @db.VarChar(100)
+  tipo                  TipoPunto
+  ciudad                String                  @db.VarChar(100)
+  direccion             String?                 @db.VarChar(255)
+  estado                Int                     @default(1)
+  userIdRegistration    Int?                    @map("user_id_registration")
+  dateTimeRegistration  DateTime                @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification    Int?                    @map("user_id_modification")
+  dateTimeModification  DateTime?               @map("date_time_modification") @db.Timestamptz(6)
+  tbl_destinos_publicos tbl_destinos_publicos[]
+  encomiendasDestino    Encomienda[]            @relation("EncomiendaDestino")
+  encomiendasOrigen     Encomienda[]            @relation("EncomiendaOrigen")
+  eventosEncomienda     EventoEncomienda[]
+  tbl_festividades      tbl_festividades[]
+  rutasDestino          Ruta[]                  @relation("RutaDestino")
+  rutasOrigen           Ruta[]                  @relation("RutaOrigen")
+  usuarios              Usuario[]
 
   @@map("tbl_puntos")
 }
@@ -385,10 +386,10 @@ model tbl_configuracion_sistema {
   experiencia_badge_texto         String?   @db.VarChar(100)
   experiencia_features            String?
   tiktok_url                      String?   @db.VarChar(255)
+  encomiendas_hero_imagen         String?   @db.VarChar(500)
   imagen_fondo_experiencia        String?
   experiencia_cta_texto           String?   @db.VarChar(100)
   experiencia_cta_link            String?   @db.VarChar(200)
-  encomiendas_hero_imagen         String?   @db.VarChar(500)
   encomiendas_landing_titulo      String?   @db.VarChar(300)
   encomiendas_landing_descripcion String?
   encomiendas_landing_imagen      String?   @db.VarChar(500)
@@ -794,6 +795,8 @@ model tbl_destinos_publicos {
   tiempo_viaje             String?                    @db.VarChar(100)
   imagen_atractivos        String?                    @db.VarChar(500)
   descripcion_atractivos   String?
+  id_punto                 Int?
+  tbl_puntos               Punto?                     @relation(fields: [id_punto], references: [id], onDelete: NoAction, onUpdate: NoAction)
   tbl_festividades_destino tbl_festividades_destino[]
 
   @@index([activo, orden], map: "idx_destinos_publicos_activo")
