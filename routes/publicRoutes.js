@@ -145,4 +145,12 @@ router.get('/nosotros', nosotrosController.getNosotrosPublico);
 // === INFO VIAJE (publico) ===
 router.get('/info-viaje-items', infoViajeController.getItemsPublicos);
 
+// === BLOG (publico) ===
+const blogController = require('../controllers/blogController');
+router.get('/blog', blogController.getArticulosPublicos);
+router.get('/blog/categorias', blogController.getCategoriasPublicas);
+router.get('/blog/recomendados', blogController.getRecomendados);
+router.get('/blog/mas-leidos', blogController.getMasLeidos);
+router.get('/blog/:slug', blogController.getArticuloPorSlug);
+
 module.exports = router;

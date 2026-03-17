@@ -54,24 +54,23 @@ model RolPermiso {
 }
 
 model Punto {
-  id                    Int                     @id @default(autoincrement())
-  nombre                String                  @db.VarChar(100)
-  tipo                  TipoPunto
-  ciudad                String                  @db.VarChar(100)
-  direccion             String?                 @db.VarChar(255)
-  estado                Int                     @default(1)
-  userIdRegistration    Int?                    @map("user_id_registration")
-  dateTimeRegistration  DateTime                @default(now()) @map("date_time_registration") @db.Timestamptz(6)
-  userIdModification    Int?                    @map("user_id_modification")
-  dateTimeModification  DateTime?               @map("date_time_modification") @db.Timestamptz(6)
-  tbl_destinos_publicos tbl_destinos_publicos[]
-  encomiendasDestino    Encomienda[]            @relation("EncomiendaDestino")
-  encomiendasOrigen     Encomienda[]            @relation("EncomiendaOrigen")
-  eventosEncomienda     EventoEncomienda[]
-  tbl_festividades      tbl_festividades[]
-  rutasDestino          Ruta[]                  @relation("RutaDestino")
-  rutasOrigen           Ruta[]                  @relation("RutaOrigen")
-  usuarios              Usuario[]
+  id                   Int                @id @default(autoincrement())
+  nombre               String             @db.VarChar(100)
+  tipo                 TipoPunto
+  ciudad               String             @db.VarChar(100)
+  direccion            String?            @db.VarChar(255)
+  estado               Int                @default(1)
+  userIdRegistration   Int?               @map("user_id_registration")
+  dateTimeRegistration DateTime           @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification   Int?               @map("user_id_modification")
+  dateTimeModification DateTime?          @map("date_time_modification") @db.Timestamptz(6)
+  encomiendasDestino   Encomienda[]       @relation("EncomiendaDestino")
+  encomiendasOrigen    Encomienda[]       @relation("EncomiendaOrigen")
+  eventosEncomienda    EventoEncomienda[]
+  tbl_festividades     tbl_festividades[]
+  rutasDestino         Ruta[]             @relation("RutaDestino")
+  rutasOrigen          Ruta[]             @relation("RutaOrigen")
+  usuarios             Usuario[]
 
   @@map("tbl_puntos")
 }
@@ -386,10 +385,10 @@ model tbl_configuracion_sistema {
   experiencia_badge_texto         String?   @db.VarChar(100)
   experiencia_features            String?
   tiktok_url                      String?   @db.VarChar(255)
-  encomiendas_hero_imagen         String?   @db.VarChar(500)
   imagen_fondo_experiencia        String?
   experiencia_cta_texto           String?   @db.VarChar(100)
   experiencia_cta_link            String?   @db.VarChar(200)
+  encomiendas_hero_imagen         String?   @db.VarChar(500)
   encomiendas_landing_titulo      String?   @db.VarChar(300)
   encomiendas_landing_descripcion String?
   encomiendas_landing_imagen      String?   @db.VarChar(500)
@@ -795,8 +794,6 @@ model tbl_destinos_publicos {
   tiempo_viaje             String?                    @db.VarChar(100)
   imagen_atractivos        String?                    @db.VarChar(500)
   descripcion_atractivos   String?
-  id_punto                 Int?
-  tbl_puntos               Punto?                     @relation(fields: [id_punto], references: [id], onDelete: NoAction, onUpdate: NoAction)
   tbl_festividades_destino tbl_festividades_destino[]
 
   @@index([activo, orden], map: "idx_destinos_publicos_activo")
@@ -918,6 +915,58 @@ model tbl_encomiendas_secciones {
   date_time_modification DateTime? @db.Timestamptz(6)
 
   @@index([tipo, activo, orden], map: "idx_encomiendas_secciones_tipo_activo")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tbl_blog_articulos {
+  id                     Int                  @id @default(autoincrement())
+  titulo                 String               @db.VarChar(300)
+  slug                   String               @unique @db.VarChar(350)
+  extracto               String?
+  contenido              String?
+  imagen_path            String?              @db.VarChar(500)
+  id_categoria           Int?
+  autor                  String?              @db.VarChar(150)
+  destacado              Boolean?             @default(false)
+  recomendado            Boolean?             @default(false)
+  vistas                 Int?                 @default(0)
+  estado                 String?              @default("BORRADOR") @db.VarChar(20)
+  fecha_publicacion      DateTime?            @db.Timestamp(6)
+  tags                   String?              @db.VarChar(500)
+  meta_description       String?              @db.VarChar(300)
+  activo                 Boolean?             @default(true)
+  user_id_registration   Int?
+  date_time_registration DateTime?            @default(now()) @db.Timestamp(6)
+  user_id_modification   Int?
+  date_time_modification DateTime?            @db.Timestamp(6)
+  tbl_blog_categorias    tbl_blog_categorias? @relation(fields: [id_categoria], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([activo], map: "idx_blog_articulos_activo")
+  @@index([id_categoria], map: "idx_blog_articulos_categoria")
+  @@index([destacado], map: "idx_blog_articulos_destacado")
+  @@index([estado], map: "idx_blog_articulos_estado")
+  @@index([fecha_publicacion(sort: Desc)], map: "idx_blog_articulos_fecha_pub")
+  @@index([recomendado], map: "idx_blog_articulos_recomendado")
+  @@index([slug], map: "idx_blog_articulos_slug")
+  @@index([vistas(sort: Desc)], map: "idx_blog_articulos_vistas")
+}
+
+model tbl_blog_categorias {
+  id                     Int                  @id @default(autoincrement())
+  nombre                 String               @db.VarChar(100)
+  slug                   String               @unique @db.VarChar(120)
+  color_badge            String?              @default("#2563EB") @db.VarChar(20)
+  color_footer           String?              @default("#2563EB") @db.VarChar(20)
+  orden                  Int?                 @default(0)
+  activo                 Boolean?             @default(true)
+  user_id_registration   Int?
+  date_time_registration DateTime?            @default(now()) @db.Timestamp(6)
+  user_id_modification   Int?
+  date_time_modification DateTime?            @db.Timestamp(6)
+  tbl_blog_articulos     tbl_blog_articulos[]
+
+  @@index([activo], map: "idx_blog_categorias_activo")
+  @@index([slug], map: "idx_blog_categorias_slug")
 }
 
 enum TipoPunto {

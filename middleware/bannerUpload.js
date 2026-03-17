@@ -18,6 +18,7 @@ const SERVICIOS_DIR = 'Fotos_servicios';
 const DESTINOS_DIR = 'Fotos_destinos';
 const PROMOCIONES_DIR = 'Fotos_promociones';
 const PAGINAS_DIR = 'Fotos_paginas';
+const BLOG_DIR = 'Fotos_blog';
 
 // Filtro para solo permitir imágenes
 const imageFilter = (req, file, cb) => {
@@ -50,7 +51,8 @@ const procesarBannerFile = async (file, tipo = 'banner') => {
   const folderMap = {
     gallery: GALLERY_DIR, festividad: FESTIVIDADES_DIR,
     servicio: SERVICIOS_DIR, destino: DESTINOS_DIR,
-    promocion: PROMOCIONES_DIR, pagina: PAGINAS_DIR
+    promocion: PROMOCIONES_DIR, pagina: PAGINAS_DIR,
+    blog: BLOG_DIR
   };
   const folder = folderMap[tipo] || BANNERS_DIR;
   const prefix = tipo || 'banner';
@@ -120,7 +122,8 @@ const guardarBannerBase64 = async (base64Data, tipo = 'banner') => {
   const folderMap = {
     gallery: GALLERY_DIR, festividad: FESTIVIDADES_DIR,
     servicio: SERVICIOS_DIR, destino: DESTINOS_DIR,
-    promocion: PROMOCIONES_DIR, pagina: PAGINAS_DIR
+    promocion: PROMOCIONES_DIR, pagina: PAGINAS_DIR,
+    blog: BLOG_DIR
   };
   const folder = folderMap[tipo] || BANNERS_DIR;
   const prefix = tipo || 'banner';
@@ -167,7 +170,8 @@ const getUploadDir = (tipo) => {
   const folderMap = {
     gallery: GALLERY_DIR, festividad: FESTIVIDADES_DIR,
     servicio: SERVICIOS_DIR, destino: DESTINOS_DIR,
-    promocion: PROMOCIONES_DIR, pagina: PAGINAS_DIR
+    promocion: PROMOCIONES_DIR, pagina: PAGINAS_DIR,
+    blog: BLOG_DIR
   };
   return folderMap[tipo] || BANNERS_DIR;
 };
@@ -201,5 +205,6 @@ module.exports = {
   SERVICIOS_DIR,
   DESTINOS_DIR,
   PROMOCIONES_DIR,
-  PAGINAS_DIR
+  PAGINAS_DIR,
+  BLOG_DIR
 };
