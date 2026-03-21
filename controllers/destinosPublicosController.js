@@ -126,24 +126,17 @@ const getDestinoBySlug = async (req, res) => {
 
     const destino = result[0];
 
-    // Jalar festividades por id_punto (vinculo por ID, no por string)
-    const festividades = destino.idPunto ? await prisma.$queryRaw`
-      SELECT DISTINCT ON (f.id)
-        f.id,
-        f.titulo,
-        f.descripcion,
-        f.orden,
-        (
-          SELECT fi.imagen_path
-          FROM tbl_festividades_imagenes fi
-          WHERE fi.id_festividad = f.id
-          ORDER BY fi.orden ASC, fi.id ASC
-          LIMIT 1
-        ) as "imagenPath"
-      FROM tbl_festividades f
-      WHERE f.activo = true AND f.id_punto = ${destino.idPunto}
-      ORDER BY f.id DESC
-    ` : [];
+    // Festividades del destino publico (tbl_festividades_destino)
+    const festividades = await prisma.$queryRaw`
+      SELECT
+        fd.id,
+        fd.titulo,
+        fd.descripcion,
+        fd.orden
+      FROM tbl_festividades_destino fd
+      WHERE fd.activo = true AND fd.id_destino = ${destino.id}
+      ORDER BY fd.orden ASC, fd.id ASC
+    `;
 
     res.json({
       destino: {
