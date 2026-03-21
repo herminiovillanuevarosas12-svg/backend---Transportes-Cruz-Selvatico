@@ -126,12 +126,33 @@ const getDestinoBySlug = async (req, res) => {
 
     const destino = result[0];
 
-    // Festividades del destino publico (tbl_festividades_destino)
-    const festividades = await prisma.$queryRaw`
+    // Atractivos turisticos - festividades generales vinculadas por id_punto
+    const festividades = destino.idPunto ? await prisma.$queryRaw`
+      SELECT DISTINCT ON (f.id)
+        f.id,
+        f.titulo,
+        f.descripcion,
+        f.orden,
+        (
+          SELECT fi.imagen_path
+          FROM tbl_festividades_imagenes fi
+          WHERE fi.id_festividad = f.id
+          ORDER BY fi.orden ASC, fi.id ASC
+          LIMIT 1
+        ) as "imagenPath"
+      FROM tbl_festividades f
+      WHERE f.activo = true AND f.id_punto = ${destino.idPunto}
+      ORDER BY f.id DESC
+    ` : [];
+
+    // Calendario festivo - festividades especificas del destino con fechas
+    const calendarioFestivo = await prisma.$queryRaw`
       SELECT
         fd.id,
         fd.titulo,
         fd.descripcion,
+        fd.fecha_inicio as "fechaInicio",
+        fd.fecha_fin as "fechaFin",
         fd.orden
       FROM tbl_festividades_destino fd
       WHERE fd.activo = true AND fd.id_destino = ${destino.id}
@@ -141,7 +162,8 @@ const getDestinoBySlug = async (req, res) => {
     res.json({
       destino: {
         ...destino,
-        festividades
+        festividades,
+        calendarioFestivo
       }
     });
   } catch (error) {
@@ -663,6 +685,36 @@ const eliminarFestividadDestino = async (req, res) => {
   }
 };
 
+/**
+ * Listar festividades de un destino (admin)
+ * GET /api/contenido/destinos/:idDestino/festividades
+ */
+const listarFestividadesDestino = async (req, res) => {
+  try {
+    const { idDestino } = req.params;
+    const festividades = await prisma.$queryRaw`
+      SELECT
+        id,
+        id_destino as "idDestino",
+        titulo,
+        descripcion,
+        fecha_inicio as "fechaInicio",
+        fecha_fin as "fechaFin",
+        orden,
+        activo,
+        date_time_registration as "createdAt",
+        date_time_modification as "updatedAt"
+      FROM tbl_festividades_destino
+      WHERE id_destino = ${parseInt(idDestino)}
+      ORDER BY orden ASC, id ASC
+    `;
+    res.json({ festividades });
+  } catch (error) {
+    console.error('Error listando festividades de destino:', error);
+    res.status(500).json({ error: 'Error al listar festividades' });
+  }
+};
+
 module.exports = {
   getDestinosPublicos,
   getDestinoBySlug,
@@ -673,5 +725,6 @@ module.exports = {
   toggleActivo,
   crearFestividadDestino,
   actualizarFestividadDestino,
-  eliminarFestividadDestino
+  eliminarFestividadDestino,
+  listarFestividadesDestino
 };

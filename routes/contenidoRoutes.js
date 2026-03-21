@@ -41,6 +41,10 @@ router.patch('/destinos/:id/toggle',
   destinosPublicosController.toggleActivo);
 
 // Festividades de destino
+router.get('/destinos/:idDestino/festividades',
+  requirePermission('LANDING_VER'),
+  destinosPublicosController.listarFestividadesDestino);
+
 router.post('/destinos/:idDestino/festividades',
   requirePermission('LANDING_EDITAR'),
   destinosPublicosController.crearFestividadDestino);
