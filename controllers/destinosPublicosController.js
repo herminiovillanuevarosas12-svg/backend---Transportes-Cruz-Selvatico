@@ -145,8 +145,8 @@ const getDestinoBySlug = async (req, res) => {
       ORDER BY f.id DESC
     ` : [];
 
-    // Calendario festivo - festividades especificas del destino con fechas
-    const calendarioFestivo = await prisma.$queryRaw`
+    // Calendario festivo - primero busca en tbl_festividades_destino (entradas con fechas)
+    let calendarioFestivo = await prisma.$queryRaw`
       SELECT
         fd.id,
         fd.titulo,
@@ -158,6 +158,29 @@ const getDestinoBySlug = async (req, res) => {
       WHERE fd.activo = true AND fd.id_destino = ${destino.id}
       ORDER BY fd.orden ASC, fd.id ASC
     `;
+
+    // Fallback: si no hay entradas especificas, usar festividades generales por id_punto
+    if (calendarioFestivo.length === 0 && destino.idPunto) {
+      calendarioFestivo = await prisma.$queryRaw`
+        SELECT
+          f.id,
+          f.titulo,
+          f.descripcion,
+          NULL as "fechaInicio",
+          NULL as "fechaFin",
+          f.orden,
+          (
+            SELECT fi.imagen_path
+            FROM tbl_festividades_imagenes fi
+            WHERE fi.id_festividad = f.id
+            ORDER BY fi.orden ASC, fi.id ASC
+            LIMIT 1
+          ) as "imagenPath"
+        FROM tbl_festividades f
+        WHERE f.activo = true AND f.id_punto = ${destino.idPunto}
+        ORDER BY f.orden ASC, f.id ASC
+      `;
+    }
 
     res.json({
       destino: {
