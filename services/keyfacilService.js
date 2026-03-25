@@ -167,7 +167,7 @@ const enviarComprobante = async (payload, idComprobante = null) => {
  * @returns {Object} Respuesta de KEYFACIL
  */
 const consultarComprobante = async (keyfacilId, idComprobante = null) => {
-  return await makeRequest(`/invoices/${keyfacilId}`, 'POST', null, null, idComprobante);
+  return await makeRequest(`/invoices/${keyfacilId}`, 'POST', { incluir_pdf: true, incluir_xml: true }, null, idComprobante);
 };
 
 /**
@@ -198,7 +198,7 @@ const enviarGuiaRemision = async (payload, idGuia = null) => {
  * @returns {Object} Respuesta de KEYFACIL
  */
 const consultarGuiaRemision = async (keyfacilId, idGuia = null) => {
-  return await makeRequest(`/despatch-documents/${keyfacilId}`, 'POST', { incluir_pdf: true, incluir_xml: false }, null, null, idGuia);
+  return await makeRequest(`/despatch-documents/${keyfacilId}`, 'POST', { incluir_pdf: true, incluir_xml: true }, null, null, idGuia);
 };
 
 /**

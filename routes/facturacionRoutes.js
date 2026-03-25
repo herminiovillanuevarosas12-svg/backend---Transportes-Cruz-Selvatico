@@ -25,6 +25,9 @@ router.get('/metricas', requirePermission('FACTURACION_VER'), facturacionControl
 // GET /api/facturacion/comprobantes - Listar comprobantes
 router.get('/comprobantes', requirePermission('FACTURACION_VER'), facturacionController.listarComprobantes);
 
+// GET /api/facturacion/comprobantes/:id/xml - Descargar XML del comprobante
+router.get('/comprobantes/:id/xml', requirePermission('FACTURACION_VER'), facturacionController.descargarXml);
+
 // GET /api/facturacion/comprobantes/:id - Obtener comprobante por ID
 router.get('/comprobantes/:id', requirePermission('FACTURACION_VER'), facturacionController.obtenerComprobante);
 

@@ -236,6 +236,41 @@ const emitirDesdeEncomienda = async (req, res) => {
 };
 
 /**
+ * Descargar XML de un comprobante
+ * GET /api/facturacion/comprobantes/:id/xml
+ */
+const descargarXml = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await facturacionService.obtenerXmlComprobante(parseInt(id));
+
+    // Si KEYFACIL devolvió contenido XML directo
+    if (result.xml) {
+      let xmlContent = result.xml;
+
+      // Si viene en base64, decodificar
+      if (typeof xmlContent === 'string' && !xmlContent.trimStart().startsWith('<')) {
+        xmlContent = Buffer.from(xmlContent, 'base64').toString('utf-8');
+      }
+
+      res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${result.numeroCompleto}.xml"`);
+      return res.send(xmlContent);
+    }
+
+    // Si hay URL al XML, redirigir
+    if (result.xmlUrl) {
+      return res.redirect(result.xmlUrl);
+    }
+
+    res.status(404).json({ error: 'XML no disponible para este comprobante' });
+  } catch (error) {
+    console.error('Error descargando XML:', error);
+    res.status(500).json({ error: error.message || 'Error al descargar XML' });
+  }
+};
+
+/**
  * Anular comprobante
  * POST /api/facturacion/comprobantes/:id/anular
  */
@@ -607,6 +642,7 @@ module.exports = {
   // Comprobantes
   listarComprobantes,
   obtenerComprobante,
+  descargarXml,
   emitirComprobante,
   emitirDesdeTicket,
   emitirDesdeEncomienda,

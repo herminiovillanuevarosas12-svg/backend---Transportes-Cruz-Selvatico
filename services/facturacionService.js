@@ -72,6 +72,8 @@ const construirPayloadKeyfacil = (config, data) => {
     cliente_nombre: cliente.razonSocial,      // Nombre o razón social
     cliente_direccion: cliente.direccion || '',
     moneda: 'PEN',
+    incluir_pdf: true,
+    incluir_xml: true,
     items: items.map((item, index) => ({
       codigo: item.codigo || `SERV-${String(index + 1).padStart(3, '0')}`,
       descripcion: item.descripcion,
@@ -528,7 +530,8 @@ const listarComprobantes = async ({
       c.cliente_razon_social as "clienteRazonSocial",
       c.fecha_emision as "fechaEmision",
       c.hora_emision as "horaEmision",
-      c.pdf_url as "pdfUrl"
+      c.pdf_url as "pdfUrl",
+      c.xml_url as "xmlUrl"
     FROM tbl_comprobantes c
     ${whereClause}
     ORDER BY c.fecha_emision DESC, c.id DESC
@@ -811,6 +814,51 @@ const actualizarConfiguracion = async (data, userId) => {
   return await obtenerConfiguracion();
 };
 
+/**
+ * Obtener XML de un comprobante consultando KEYFACIL
+ * @param {number} id - ID del comprobante
+ * @returns {Object} { xml, xmlUrl, numeroCompleto }
+ */
+const obtenerXmlComprobante = async (id) => {
+  const comprobante = await prisma.$queryRaw`
+    SELECT id, keyfacil_id as "keyfacilId", xml_url as "xmlUrl",
+           numero_completo as "numeroCompleto"
+    FROM tbl_comprobantes WHERE id = ${id}
+  `;
+
+  if (!comprobante || comprobante.length === 0) {
+    throw new Error('Comprobante no encontrado');
+  }
+
+  const comp = comprobante[0];
+
+  if (!comp.keyfacilId) {
+    throw new Error('Este comprobante no fue enviado a KEYFACIL');
+  }
+
+  // Consultar KEYFACIL con incluir_xml: true
+  const response = await keyfacilService.consultarComprobante(comp.keyfacilId, comp.id);
+
+  if (!response.success) {
+    throw new Error('Error al consultar comprobante en KEYFACIL');
+  }
+
+  const data = response.data;
+
+  // Actualizar xml_url en BD si KEYFACIL devolvió una nueva
+  if (data.xmlUrl && data.xmlUrl !== comp.xmlUrl) {
+    await prisma.$executeRaw`
+      UPDATE tbl_comprobantes SET xml_url = ${data.xmlUrl} WHERE id = ${id}
+    `;
+  }
+
+  return {
+    xml: data.xml || null,
+    xmlUrl: data.xmlUrl || comp.xmlUrl || null,
+    numeroCompleto: comp.numeroCompleto
+  };
+};
+
 module.exports = {
   obtenerSiguienteNumero,
   construirPayloadKeyfacil,
@@ -821,6 +869,7 @@ module.exports = {
   anularComprobante: anularComprobanteLocal,
   listarComprobantes,
   obtenerComprobante,
+  obtenerXmlComprobante,
   obtenerMetricas,
   obtenerSeries,
   obtenerConfiguracion,
