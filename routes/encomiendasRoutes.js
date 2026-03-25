@@ -27,6 +27,13 @@ router.get('/codigo/:codigo',
   encomiendasController.buscarPorCodigo
 );
 
+// GET /api/encomiendas/dni/:dni - Buscar encomiendas vigentes por DNI
+router.get('/dni/:dni',
+  verifyToken,
+  requirePermission(['ENCOMIENDAS_ESCANEAR', 'ENCOMIENDAS_LISTAR']),
+  encomiendasController.buscarPorDni
+);
+
 // GET /api/encomiendas/:id - Obtener encomienda por ID
 router.get('/:id',
   verifyToken,

@@ -55,7 +55,7 @@ const TRANSICIONES_PERMITIDAS = {
  */
 const listar = async (req, res) => {
   try {
-    const { estado, codigoTracking, fechaDesde, fechaHasta, page = 1, limit = 20 } = req.query;
+    const { estado, codigoTracking, dni, fechaDesde, fechaHasta, page = 1, limit = 20 } = req.query;
 
     const where = {};
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -69,6 +69,16 @@ const listar = async (req, res) => {
         contains: codigoTracking,
         mode: 'insensitive'
       };
+    }
+
+    if (dni) {
+      if (!where.AND) where.AND = [];
+      where.AND.push({
+        OR: [
+          { remitenteDni: { contains: dni, mode: 'insensitive' } },
+          { destinatario_dni: { contains: dni, mode: 'insensitive' } }
+        ]
+      });
     }
 
     if (fechaDesde || fechaHasta) {
@@ -98,10 +108,13 @@ const listar = async (req, res) => {
 
     // Si el usuario tiene punto asignado, filtrar
     if (req.user.id_punto) {
-      where.OR = [
-        { idPuntoOrigen: req.user.id_punto },
-        { idPuntoDestino: req.user.id_punto }
-      ];
+      if (!where.AND) where.AND = [];
+      where.AND.push({
+        OR: [
+          { idPuntoOrigen: req.user.id_punto },
+          { idPuntoDestino: req.user.id_punto }
+        ]
+      });
     }
 
     const [encomiendas, total] = await Promise.all([
@@ -1273,6 +1286,64 @@ const generarQR = async (req, res) => {
 };
 
 /**
+ * Buscar encomiendas vigentes por DNI
+ * GET /api/encomiendas/dni/:dni
+ * Retorna encomiendas donde el DNI coincide con remitente o destinatario,
+ * excluyendo las que ya fueron retiradas (RETIRADO)
+ */
+const buscarPorDni = async (req, res) => {
+  try {
+    const { dni } = req.params;
+
+    if (!dni || dni.trim().length < 6) {
+      return res.status(400).json({ error: 'Ingrese un DNI valido (minimo 6 digitos)' });
+    }
+
+    const encomiendas = await prisma.encomienda.findMany({
+      where: {
+        OR: [
+          { remitenteDni: { equals: dni.trim(), mode: 'insensitive' } },
+          { destinatario_dni: { equals: dni.trim(), mode: 'insensitive' } }
+        ],
+        estadoActual: { not: 'RETIRADO' }
+      },
+      include: {
+        puntoOrigen: { select: { id: true, nombre: true, ciudad: true } },
+        puntoDestino: { select: { id: true, nombre: true, ciudad: true } }
+      },
+      orderBy: { dateTimeRegistration: 'desc' }
+    });
+
+    res.json({
+      encomiendas: encomiendas.map(e => ({
+        id: e.id,
+        codigoRastreo: e.codigoTracking,
+        estado: e.estadoActual,
+        descripcion: e.descripcion || e.tipoPaquete,
+        peso: e.peso,
+        remitenteNombre: e.remitenteNombre,
+        remitenteDni: e.remitenteDni,
+        remitenteTelefono: e.remitenteTelefono,
+        destinatarioNombre: e.destinatarioNombre,
+        destinatario_dni: e.destinatario_dni,
+        destinatarioTelefono: e.destinatarioTelefono,
+        fechaRegistro: e.dateTimeRegistration,
+        ruta: {
+          puntoOrigen: e.puntoOrigen,
+          puntoDestino: e.puntoDestino
+        },
+        pagoAlRecojo: e.pago_al_recojo || false,
+        precioFinal: e.precio_final || e.precioCalculado
+      })),
+      total: encomiendas.length
+    });
+  } catch (error) {
+    console.error('Error buscando encomiendas por DNI:', error);
+    res.status(500).json({ error: 'Error al buscar encomiendas por DNI' });
+  }
+};
+
+/**
  * Consulta publica
  * GET /api/public/tracking/:codigo
  */
@@ -1343,5 +1414,6 @@ module.exports = {
   retirar,
   imprimir,
   generarQR,
+  buscarPorDni,
   consultaPublica
 };
