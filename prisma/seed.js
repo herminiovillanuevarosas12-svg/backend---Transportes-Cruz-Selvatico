@@ -259,6 +259,7 @@ Recibido sin verificacion de contenido.`,
         keyfacil_url: 'https://api.vitekey.com/keyfact/integra/v1',
         modo_produccion: true,
         igv_porcentaje: 18.00,
+        exonerado_igv: false,
         activo: true
       }
     });

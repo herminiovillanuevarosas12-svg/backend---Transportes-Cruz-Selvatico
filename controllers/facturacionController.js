@@ -93,7 +93,8 @@ const emitirComprobante = async (req, res) => {
       tipoComprobante,
       serie,
       cliente,
-      items
+      items,
+      incluyeIgv
     } = req.body;
 
     // Validaciones
@@ -124,7 +125,8 @@ const emitirComprobante = async (req, res) => {
       items,
       origenTipo: 'MANUAL',
       origenId: null,
-      userId: req.user.id
+      userId: req.user.id,
+      incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null
     });
 
     // Auditoría
@@ -152,7 +154,7 @@ const emitirComprobante = async (req, res) => {
 const emitirDesdeTicket = async (req, res) => {
   try {
     const { ticketId } = req.params;
-    const { tipoComprobante, serie, cliente } = req.body;
+    const { tipoComprobante, serie, cliente, incluyeIgv } = req.body;
 
     // Validaciones
     if (!tipoComprobante || !serie || !cliente) {
@@ -169,7 +171,7 @@ const emitirDesdeTicket = async (req, res) => {
 
     const comprobante = await facturacionService.emitirDesdeTicket(
       parseInt(ticketId),
-      { tipoComprobante, serie, cliente, userId: req.user.id }
+      { tipoComprobante, serie, cliente, userId: req.user.id, incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null }
     );
 
     // Auditoría
@@ -197,7 +199,7 @@ const emitirDesdeTicket = async (req, res) => {
 const emitirDesdeEncomienda = async (req, res) => {
   try {
     const { encomiendaId } = req.params;
-    const { tipoComprobante, serie, cliente } = req.body;
+    const { tipoComprobante, serie, cliente, incluyeIgv } = req.body;
 
     // Validaciones
     if (!tipoComprobante || !serie || !cliente) {
@@ -214,7 +216,7 @@ const emitirDesdeEncomienda = async (req, res) => {
 
     const comprobante = await facturacionService.emitirDesdeEncomienda(
       parseInt(encomiendaId),
-      { tipoComprobante, serie, cliente, userId: req.user.id }
+      { tipoComprobante, serie, cliente, userId: req.user.id, incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null }
     );
 
     // Auditoría

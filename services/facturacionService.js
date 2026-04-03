@@ -39,9 +39,9 @@ const obtenerSiguienteNumero = async (tipoComprobante, serie) => {
 
 /**
  * Construir payload para KEYFACIL
- * Estructura según documentación oficial de KEYFACIL API
- * @param {Object} config - Configuración SUNAT (no se usa, KEYFACIL tiene datos del emisor)
- * @param {Object} data - Datos del comprobante
+ * Estructura según Manual de Integración KEYFACIL
+ * @param {Object} config - Configuración SUNAT
+ * @param {Object} data - Datos del comprobante (items ya deben tener tipoIGV definido)
  * @returns {Object} Payload para KEYFACIL
  */
 const construirPayloadKeyfacil = (config, data) => {
@@ -59,17 +59,17 @@ const construirPayloadKeyfacil = (config, data) => {
     ? fechaEmision.toISOString().split('T')[0]
     : fechaEmision;
 
-  // Estructura plana según documentación KEYFACIL
+  // Estructura plana según Manual de Integración KEYFACIL
   // KEYFACIL calcula automáticamente los totales desde los items
   return {
-    tipo: tipoComprobante,                    // "01" o "03"
-    serie: serie,                             // "FT74" o "BT74"
-    numero: parseInt(numero),                 // Número entero, no string padded
-    fecha_emision: fechaFormateada,           // "YYYY-MM-DD"
-    tipo_operacion: '0101',                   // Venta interna
-    cliente_tipo: cliente.tipoDoc,            // "6"=RUC, "1"=DNI, "-"=VARIOS
-    cliente_documento: cliente.numDoc,        // Número de documento
-    cliente_nombre: cliente.razonSocial,      // Nombre o razón social
+    tipo: tipoComprobante,
+    serie: serie,
+    numero: parseInt(numero),
+    fecha_emision: fechaFormateada,
+    tipo_operacion: '0101',
+    cliente_tipo: cliente.tipoDoc,
+    cliente_documento: cliente.numDoc,
+    cliente_nombre: cliente.razonSocial,
     cliente_direccion: cliente.direccion || '',
     moneda: 'PEN',
     incluir_pdf: true,
@@ -77,38 +77,55 @@ const construirPayloadKeyfacil = (config, data) => {
     items: items.map((item, index) => ({
       codigo: item.codigo || `SERV-${String(index + 1).padStart(3, '0')}`,
       descripcion: item.descripcion,
-      unidad_medida: item.unidadMedida || 'ZZ',  // ZZ = Servicio
+      unidad_medida: item.unidadMedida || 'ZZ',
       cantidad: parseFloat(item.cantidad),
       precio_unitario: parseFloat(item.precioUnitario.toFixed(2)),
-      tipo_igv: item.tipoIGV || '10'             // 10 = Gravado
+      tipo_igv: item.tipoIGV
     }))
   };
 };
 
 /**
  * Calcular IGV y totales de items
- * @param {Array} items - Items sin IGV calculado
- * @param {number} igvPorcentaje - Porcentaje de IGV (default 18)
+ * Soporta items gravados (tipo_igv '10') y exonerados (tipo_igv '20')
+ * @param {Array} items - Items con tipoIGV opcional por item
+ * @param {number} igvPorcentaje - Porcentaje de IGV desde config
+ * @param {boolean} incluyeIgv - Si true, items son gravados; si false, exonerados
  * @returns {Object} Items con IGV y totales
  */
-const calcularTotales = (items, igvPorcentaje = 18) => {
-  const factor = igvPorcentaje / 100;
+const calcularTotales = (items, igvPorcentaje, incluyeIgv = true) => {
+  const factor = parseFloat(igvPorcentaje) / 100;
 
   const itemsCalculados = items.map(item => {
     const cantidad = parseFloat(item.cantidad);
-    const precioConIgv = parseFloat(item.precioUnitario);
+    const precioIngresado = parseFloat(item.precioUnitario);
+    // tipoIGV por item tiene prioridad; si no, se usa el flag global
+    const esGravado = item.tipoIGV
+      ? item.tipoIGV === '10'
+      : incluyeIgv;
 
-    // Calcular valor sin IGV
-    const valorUnitario = precioConIgv / (1 + factor);
-    const subtotal = valorUnitario * cantidad;
-    const igv = subtotal * factor;
-    const total = subtotal + igv;
+    let valorUnitario, subtotal, igv, total;
+
+    if (esGravado) {
+      // Gravado: precio ingresado incluye IGV
+      valorUnitario = precioIngresado / (1 + factor);
+      subtotal = valorUnitario * cantidad;
+      igv = subtotal * factor;
+      total = subtotal + igv;
+    } else {
+      // Exonerado/Inafecto: precio ingresado ES el precio final, IGV = 0
+      valorUnitario = precioIngresado;
+      subtotal = valorUnitario * cantidad;
+      igv = 0;
+      total = subtotal;
+    }
 
     return {
       ...item,
       cantidad,
+      tipoIGV: esGravado ? '10' : '20',
       valorUnitario: Math.round(valorUnitario * 1000000) / 1000000,
-      precioUnitario: precioConIgv,
+      precioUnitario: precioIngresado,
       subtotal: Math.round(subtotal * 100) / 100,
       igv: Math.round(igv * 100) / 100,
       total: Math.round(total * 100) / 100
@@ -132,6 +149,7 @@ const calcularTotales = (items, igvPorcentaje = 18) => {
 /**
  * Emitir comprobante electrónico
  * @param {Object} params - Parámetros del comprobante
+ * @param {boolean} params.incluyeIgv - Si se incluye IGV (null = usar config default)
  * @returns {Object} Comprobante creado
  */
 const emitirComprobante = async ({
@@ -142,7 +160,8 @@ const emitirComprobante = async ({
   origenTipo = 'MANUAL',
   origenId = null,
   userId,
-  comentario = null
+  comentario = null,
+  incluyeIgv = null
 }) => {
   // Obtener configuración
   const config = await keyfacilService.getConfig();
@@ -165,9 +184,12 @@ const emitirComprobante = async ({
     throw new Error('Para facturas se requiere RUC (tipo documento 6)');
   }
 
-  // Calcular IGV y totales
-  const igvPorcentaje = parseFloat(config.igvPorcentaje) || 18;
-  const { items: itemsCalculados, totales } = calcularTotales(items, igvPorcentaje);
+  // Determinar si incluye IGV: parámetro explícito > config > default (true)
+  const aplicaIgv = incluyeIgv !== null ? incluyeIgv : !(config.exoneradoIgv === true);
+
+  // Calcular IGV y totales (igvPorcentaje viene de tbl_configuracion_sunat, DEFAULT 18.00 en BD)
+  const igvPorcentaje = parseFloat(config.igvPorcentaje);
+  const { items: itemsCalculados, totales } = calcularTotales(items, igvPorcentaje, aplicaIgv);
 
   // Obtener siguiente número
   const numero = await obtenerSiguienteNumero(tipoComprobante, serie);
@@ -206,7 +228,7 @@ const emitirComprobante = async ({
         ${idComprobante}, ${i + 1}, ${item.codigo || `SERV-${i + 1}`},
         ${item.descripcion}, ${item.unidadMedida || 'ZZ'},
         ${item.cantidad}, ${item.valorUnitario}, ${item.precioUnitario},
-        ${item.subtotal}, ${item.igv}, ${item.total}, ${item.tipoIGV || '10'}
+        ${item.subtotal}, ${item.igv}, ${item.total}, ${item.tipoIGV}
       )
     `;
   }
@@ -282,9 +304,10 @@ const emitirComprobante = async ({
  * Emitir comprobante desde ticket
  * @param {number} ticketId - ID del ticket
  * @param {Object} params - Parámetros adicionales
+ * @param {boolean} params.incluyeIgv - Si se incluye IGV (null = usar config default)
  * @returns {Object} Comprobante creado
  */
-const emitirDesdeTicket = async (ticketId, { tipoComprobante, serie, cliente, userId }) => {
+const emitirDesdeTicket = async (ticketId, { tipoComprobante, serie, cliente, userId, incluyeIgv = null }) => {
   // Obtener datos del ticket
   const ticket = await prisma.ticket.findUnique({
     where: { id: parseInt(ticketId) },
@@ -338,7 +361,8 @@ const emitirDesdeTicket = async (ticketId, { tipoComprobante, serie, cliente, us
     items,
     origenTipo: 'TICKET',
     origenId: ticketId,
-    userId
+    userId,
+    incluyeIgv
   });
 
   // Actualizar ticket con referencia al comprobante
@@ -355,9 +379,10 @@ const emitirDesdeTicket = async (ticketId, { tipoComprobante, serie, cliente, us
  * Emitir comprobante desde encomienda
  * @param {number} encomiendaId - ID de la encomienda
  * @param {Object} params - Parámetros adicionales
+ * @param {boolean} params.incluyeIgv - Si se incluye IGV (null = usar config default)
  * @returns {Object} Comprobante creado
  */
-const emitirDesdeEncomienda = async (encomiendaId, { tipoComprobante, serie, cliente, userId }) => {
+const emitirDesdeEncomienda = async (encomiendaId, { tipoComprobante, serie, cliente, userId, incluyeIgv = null }) => {
   // Obtener datos de la encomienda
   const encomienda = await prisma.encomienda.findUnique({
     where: { id: parseInt(encomiendaId) },
@@ -401,7 +426,8 @@ const emitirDesdeEncomienda = async (encomiendaId, { tipoComprobante, serie, cli
     items,
     origenTipo: 'ENCOMIENDA',
     origenId: encomiendaId,
-    userId
+    userId,
+    incluyeIgv
   });
 
   // Actualizar encomienda con referencia al comprobante
@@ -768,7 +794,8 @@ const actualizarConfiguracion = async (data, userId) => {
     distrito,
     keyfacilToken,
     modoProduccion,
-    igvPorcentaje
+    igvPorcentaje,
+    exoneradoIgv
   } = data;
 
   // Verificar si existe configuración
@@ -791,6 +818,7 @@ const actualizarConfiguracion = async (data, userId) => {
           keyfacil_token = ${keyfacilToken},
           modo_produccion = ${modoProduccion || false},
           igv_porcentaje = ${igvPorcentaje || 18},
+          exonerado_igv = ${exoneradoIgv || false},
           user_id_modification = ${userId},
           date_time_modification = NOW()
       WHERE activo = true
@@ -801,12 +829,12 @@ const actualizarConfiguracion = async (data, userId) => {
       INSERT INTO tbl_configuracion_sunat (
         ruc_emisor, razon_social, nombre_comercial, direccion_fiscal,
         ubigeo, departamento, provincia, distrito,
-        keyfacil_token, modo_produccion, igv_porcentaje, activo, user_id_registration
+        keyfacil_token, modo_produccion, igv_porcentaje, exonerado_igv, activo, user_id_registration
       ) VALUES (
         ${rucEmisor}, ${razonSocial}, ${nombreComercial}, ${direccionFiscal},
         ${ubigeo}, ${departamento}, ${provincia}, ${distrito},
         ${keyfacilToken}, ${modoProduccion || false}, ${igvPorcentaje || 18},
-        true, ${userId}
+        ${exoneradoIgv || false}, true, ${userId}
       )
     `;
   }

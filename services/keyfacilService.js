@@ -33,7 +33,8 @@ const getConfig = async () => {
       keyfacil_token as "keyfacilToken",
       keyfacil_url as "keyfacilUrl",
       modo_produccion as "modoProduccion",
-      igv_porcentaje as "igvPorcentaje"
+      igv_porcentaje as "igvPorcentaje",
+      exonerado_igv as "exoneradoIgv"
     FROM tbl_configuracion_sunat
     WHERE activo = true
     LIMIT 1
