@@ -165,7 +165,8 @@ const registrar = async (req, res) => {
       pagoAlRecojo = false,
       claveSeguridad,
       comentario,
-      idPrecioBase
+      idPrecioBase,
+      incluyeIgv
     } = req.body;
 
     // Validaciones
@@ -459,7 +460,8 @@ const registrar = async (req, res) => {
           origenTipo: 'ENCOMIENDA',
           origenId: encomienda.id,
           userId: req.user.id,
-          comentario: comentario || null
+          comentario: comentario || null,
+          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null
         });
 
         await prisma.$executeRaw`
@@ -486,7 +488,8 @@ const registrar = async (req, res) => {
           origenTipo: 'ENCOMIENDA',
           origenId: encomienda.id,
           userId: req.user.id,
-          comentario: comentario || null
+          comentario: comentario || null,
+          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null
         });
 
         await prisma.$executeRaw`

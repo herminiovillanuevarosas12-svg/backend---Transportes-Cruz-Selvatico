@@ -163,7 +163,8 @@ const vender = async (req, res) => {
       puntosACanjear = 0,
       tipoDocumento,
       clienteFactura,
-      precioManual
+      precioManual,
+      incluyeIgv
     } = req.body;
 
     // Validaciones
@@ -475,7 +476,8 @@ const vender = async (req, res) => {
           origenTipo: 'TICKET',
           origenId: resultado.id,
           userId: req.user.id,
-          comentario: pasajero.comentario || null
+          comentario: pasajero.comentario || null,
+          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null
         });
 
         await prisma.$executeRaw`
@@ -502,7 +504,8 @@ const vender = async (req, res) => {
           origenTipo: 'TICKET',
           origenId: resultado.id,
           userId: req.user.id,
-          comentario: pasajero.comentario || null
+          comentario: pasajero.comentario || null,
+          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null
         });
 
         await prisma.$executeRaw`
@@ -825,7 +828,8 @@ const venderInstantaneo = async (req, res) => {
       puntosACanjear = 0,
       tipoDocumento,
       clienteFactura,
-      precioManual
+      precioManual,
+      incluyeIgv
     } = req.body;
 
     // Validaciones basicas
@@ -1118,7 +1122,8 @@ const venderInstantaneo = async (req, res) => {
           origenTipo: 'TICKET',
           origenId: resultado.id,
           userId: req.user.id,
-          comentario: pasajero.comentario || null
+          comentario: pasajero.comentario || null,
+          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null
         });
 
         await prisma.$executeRaw`
@@ -1145,7 +1150,8 @@ const venderInstantaneo = async (req, res) => {
           origenTipo: 'TICKET',
           origenId: resultado.id,
           userId: req.user.id,
-          comentario: pasajero.comentario || null
+          comentario: pasajero.comentario || null,
+          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null
         });
 
         await prisma.$executeRaw`

@@ -695,7 +695,15 @@ const obtenerComprobante = async (id) => {
           nombre: encomiendaData.puntoOrigen.nombre,
           ciudad: encomiendaData.puntoOrigen.ciudad,
           direccion: encomiendaData.puntoOrigen.direccion
-        } : null
+        } : null,
+        paquete: {
+          tipoPaquete: encomiendaData.tipoPaquete,
+          descripcion: encomiendaData.descripcion,
+          peso: encomiendaData.peso,
+          alto: encomiendaData.alto,
+          ancho: encomiendaData.ancho,
+          largo: encomiendaData.largo
+        }
       };
     }
   }
