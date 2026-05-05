@@ -928,18 +928,14 @@ const retirar = async (req, res) => {
       });
     }
 
-    if (!fotoBase64) {
-      return res.status(400).json({
-        error: 'Debe adjuntar foto de evidencia'
-      });
-    }
-
-    // Validar tamano de la foto (max 5MB en base64)
-    const MAX_FOTO_SIZE = 5 * 1024 * 1024 * 1.37; // 5MB * overhead base64
-    if (fotoBase64.length > MAX_FOTO_SIZE) {
-      return res.status(400).json({
-        error: 'La foto excede el tamano maximo permitido (5MB)'
-      });
+    // Foto de evidencia opcional: si se envia, validar tamano (max 5MB en base64)
+    if (fotoBase64) {
+      const MAX_FOTO_SIZE = 5 * 1024 * 1024 * 1.37; // 5MB * overhead base64
+      if (fotoBase64.length > MAX_FOTO_SIZE) {
+        return res.status(400).json({
+          error: 'La foto excede el tamano maximo permitido (5MB)'
+        });
+      }
     }
 
     const encomienda = await prisma.encomienda.findUnique({

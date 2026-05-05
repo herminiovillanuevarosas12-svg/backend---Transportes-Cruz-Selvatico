@@ -38,33 +38,28 @@ const generarCodigoTicket = async (tx) => {
 
 /**
  * Generar codigo de tracking para encomienda
- * Formato: ENC-YYYYMMDD-NNNNN
+ * Formato: ENC-NNNNNNNN (correlativo global de 8 digitos)
  * @param {PrismaClient} tx - Cliente Prisma (transaccion)
  * @returns {Promise<string>} Codigo generado
  */
 const generarCodigoTracking = async (tx) => {
-  // Usar zona horaria Peru (UTC-5) para la fecha
-  const fecha = getFechaPeruYYYYMMDD();
-
-  // Obtener la ultima encomienda del dia
-  const ultimaEncomienda = await tx.encomienda.findFirst({
-    where: {
-      codigoTracking: {
-        startsWith: `ENC-${fecha}`
-      }
-    },
-    orderBy: {
-      codigoTracking: 'desc'
-    }
-  });
+  // Buscar el ultimo correlativo con el nuevo formato ENC-NNNNNNNN
+  // Se filtra por regex para ignorar encomiendas con el formato antiguo ENC-YYYYMMDD-NNNNN
+  const resultado = await tx.$queryRaw`
+    SELECT codigo_tracking
+    FROM tbl_encomiendas
+    WHERE codigo_tracking ~ '^ENC-[0-9]{8}$'
+    ORDER BY codigo_tracking DESC
+    LIMIT 1
+  `;
 
   let secuencial = 1;
-  if (ultimaEncomienda) {
-    const partes = ultimaEncomienda.codigoTracking.split('-');
-    secuencial = parseInt(partes[2]) + 1;
+  if (resultado && resultado.length > 0) {
+    const partes = resultado[0].codigo_tracking.split('-');
+    secuencial = parseInt(partes[1], 10) + 1;
   }
 
-  return `ENC-${fecha}-${String(secuencial).padStart(5, '0')}`;
+  return `ENC-${String(secuencial).padStart(8, '0')}`;
 };
 
 module.exports = {
