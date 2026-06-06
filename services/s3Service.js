@@ -64,6 +64,42 @@ const uploadFile = async (buffer, key, contentType, bucket = UPLOADS_BUCKET) => 
   }
 };
 
+// Formatos de imagen aceptados para uploads base64 (renderizables en navegador)
+const FORMATOS_IMAGEN_PERMITIDOS = ['jpeg', 'jpg', 'png', 'webp', 'gif', 'avif', 'bmp'];
+
+/**
+ * Parsea un dataURL de imagen base64 de forma tolerante
+ * Acepta subtipos con caracteres especiales y parametros extra
+ * (ej: data:image/jpeg;charset=utf-8;base64,...) y valida contra whitelist
+ * @param {string} base64Data - dataURL (data:image/...;base64,...)
+ * @returns {{imageType: string, ext: string, imageData: string, contentType: string}|null}
+ *          null si el formato es invalido o no esta permitido
+ */
+const parsearImagenBase64 = (base64Data) => {
+  if (typeof base64Data !== 'string' || !base64Data.startsWith('data:image/')) {
+    return null;
+  }
+  const comaIdx = base64Data.indexOf(',');
+  if (comaIdx === -1) {
+    return null;
+  }
+  // header: 'image/jpeg;base64' o 'image/jpeg;charset=utf-8;base64'
+  const header = base64Data.substring(5, comaIdx);
+  if (!header.endsWith(';base64')) {
+    return null;
+  }
+  const imageType = header.split(';')[0].split('/')[1]?.toLowerCase();
+  if (!imageType || !FORMATOS_IMAGEN_PERMITIDOS.includes(imageType)) {
+    return null;
+  }
+  return {
+    imageType,
+    ext: imageType === 'jpeg' ? 'jpg' : imageType,
+    imageData: base64Data.substring(comaIdx + 1),
+    contentType: `image/${imageType}`
+  };
+};
+
 /**
  * Sube una imagen desde base64 a S3
  * @param {string} base64Data - Imagen en formato base64 (data:image/...;base64,...)
@@ -73,16 +109,13 @@ const uploadFile = async (buffer, key, contentType, bucket = UPLOADS_BUCKET) => 
  * @returns {Promise<{key: string, url: string}>}
  */
 const uploadBase64 = async (base64Data, folder, prefix, identifier = '') => {
-  // Extraer tipo de imagen y datos
-  const matches = base64Data.match(/^data:image\/(\w+);base64,(.+)$/);
-  if (!matches) {
-    throw new Error('Formato de imagen base64 invalido');
+  // Extraer tipo de imagen y datos (parser tolerante + whitelist)
+  const parsed = parsearImagenBase64(base64Data);
+  if (!parsed) {
+    throw new Error('Formato de imagen no soportado. Use JPG, PNG, WEBP o GIF.');
   }
 
-  const imageType = matches[1];
-  const ext = imageType === 'jpeg' ? 'jpg' : imageType;
-  const imageData = matches[2];
-  const contentType = `image/${imageType}`;
+  const { ext, imageData, contentType } = parsed;
 
   // Generar nombre de archivo
   const timestamp = Date.now();
@@ -179,6 +212,8 @@ module.exports = {
   getPublicUrl,
   uploadBackup,
   isConfigured,
+  parsearImagenBase64,
+  FORMATOS_IMAGEN_PERMITIDOS,
   UPLOADS_BUCKET,
   BACKUPS_BUCKET
 };

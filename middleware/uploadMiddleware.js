@@ -98,13 +98,12 @@ const guardarImagenBase64 = async (base64Data, encomiendaId) => {
       fs.mkdirSync(uploadPath, { recursive: true });
     }
 
-    const matches = base64Data.match(/^data:image\/(\w+);base64,(.+)$/);
-    if (!matches) {
-      throw new Error('Formato de imagen base64 invalido');
+    const parsed = s3Service.parsearImagenBase64(base64Data);
+    if (!parsed) {
+      throw new Error('Formato de imagen no soportado. Use JPG, PNG, WEBP o GIF.');
     }
 
-    const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
-    const imageData = matches[2];
+    const { ext, imageData } = parsed;
 
     const timestamp = Date.now();
     const random = Math.round(Math.random() * 1E9);
@@ -131,6 +130,9 @@ const eliminarFotoEntrega = async (urlOrPath) => {
     const url = new URL(urlOrPath);
     const key = url.pathname.split('/').slice(2).join('/');
     return await s3Service.deleteFile(key);
+  } else if (s3Service.isConfigured()) {
+    // Es una key relativa de S3 (ej: 'Entrega_encomiendas/enc_xxx.jpg')
+    return await s3Service.deleteFile(urlOrPath);
   } else {
     // Es una ruta local: eliminar archivo
     const fullPath = path.join(UPLOADS_BASE, urlOrPath);

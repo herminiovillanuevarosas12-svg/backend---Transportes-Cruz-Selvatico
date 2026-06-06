@@ -8,7 +8,8 @@ const { registrarAuditoria } = require('../services/auditoriaService');
 const { generarCodigoTracking } = require('../services/codigoService');
 const { calcularPrecioEncomienda } = require('../services/preciosService');
 const facturacionService = require('../services/facturacionService');
-const { guardarImagenBase64 } = require('../middleware/uploadMiddleware');
+const { guardarImagenBase64, eliminarFotoEntrega } = require('../middleware/uploadMiddleware');
+const { parsearImagenBase64 } = require('../services/s3Service');
 const QRCode = require('qrcode');
 const { utcNow, parseCivilDate } = require('../utils/dateUtils');
 
@@ -928,12 +929,18 @@ const retirar = async (req, res) => {
       });
     }
 
-    // Foto de evidencia opcional: si se envia, validar tamano (max 5MB en base64)
+    // Foto de evidencia opcional: si se envia, validar tamano (max 10MB) y formato
     if (fotoBase64) {
-      const MAX_FOTO_SIZE = 5 * 1024 * 1024 * 1.37; // 5MB * overhead base64
+      const MAX_FOTO_SIZE = 10 * 1024 * 1024 * 1.37; // 10MB * overhead base64
       if (fotoBase64.length > MAX_FOTO_SIZE) {
         return res.status(400).json({
-          error: 'La foto excede el tamano maximo permitido (5MB)'
+          error: 'La foto excede el tamano maximo permitido (10MB)'
+        });
+      }
+      // Validar formato ANTES de procesar (evita 500 genericos por formatos no soportados)
+      if (!parsearImagenBase64(fotoBase64)) {
+        return res.status(400).json({
+          error: 'Formato de imagen no soportado. Use JPG, PNG, WEBP o GIF.'
         });
       }
     }
@@ -993,58 +1000,71 @@ const retirar = async (req, res) => {
     // Punto del evento: siempre es destino (ya validamos que el usuario pertenece al destino o es superadmin)
     const idPuntoEvento = encomienda.idPuntoDestino;
 
+    // Guardar foto ANTES de la transaccion: la subida a S3 puede tardar mas que
+    // el timeout de la transaccion interactiva de Prisma (5s por defecto) y
+    // abortarla con "Transaction already closed"
+    let fotoPath = null;
+    if (fotoBase64) {
+      fotoPath = await guardarImagenBase64(fotoBase64, id);
+    }
+
     // Procesar retiro (con optimistic locking)
-    const resultado = await prisma.$transaction(async (tx) => {
-      // Verificar que el estado no haya cambiado concurrentemente
-      const encActual = await tx.encomienda.findUnique({ where: { id: parseInt(id) } });
-      if (encActual.estadoActual !== 'LLEGO_A_DESTINO') {
-        throw new Error('ESTADO_MODIFICADO_CONCURRENTEMENTE');
-      }
-
-      // Actualizar encomienda
-      const enc = await tx.encomienda.update({
-        where: { id: parseInt(id) },
-        data: {
-          estadoActual: 'RETIRADO',
-          userIdModification: req.user.id,
-          dateTimeModification: utcNow()
-        },
-        include: {
-          puntoOrigen: true,
-          puntoDestino: true
+    let resultado;
+    try {
+      resultado = await prisma.$transaction(async (tx) => {
+        // Verificar que el estado no haya cambiado concurrentemente
+        const encActual = await tx.encomienda.findUnique({ where: { id: parseInt(id) } });
+        if (encActual.estadoActual !== 'LLEGO_A_DESTINO') {
+          throw new Error('ESTADO_MODIFICADO_CONCURRENTEMENTE');
         }
-      });
 
-      // Guardar foto fisicamente en uploads/Entrega_encomiendas
-      let fotoPath = null;
-      if (fotoBase64) {
-        fotoPath = await guardarImagenBase64(fotoBase64, id);
-      }
+        // Actualizar encomienda
+        const enc = await tx.encomienda.update({
+          where: { id: parseInt(id) },
+          data: {
+            estadoActual: 'RETIRADO',
+            userIdModification: req.user.id,
+            dateTimeModification: utcNow()
+          },
+          include: {
+            puntoOrigen: true,
+            puntoDestino: true
+          }
+        });
 
-      // Crear evento de retiro con la ruta de la foto
-      const evento = await tx.eventoEncomienda.create({
-        data: {
-          idEncomienda: parseInt(id),
-          estadoDestino: 'RETIRADO',
-          idUsuarioEvento: req.user.id,
-          idPuntoEvento: parseInt(idPuntoEvento),
-          nota: nota || 'Retiro completado',
-          dniRetiro,
-          userIdRegistration: req.user.id
+        // Crear evento de retiro con la ruta de la foto
+        const evento = await tx.eventoEncomienda.create({
+          data: {
+            idEncomienda: parseInt(id),
+            estadoDestino: 'RETIRADO',
+            idUsuarioEvento: req.user.id,
+            idPuntoEvento: parseInt(idPuntoEvento),
+            nota: nota || 'Retiro completado',
+            dniRetiro,
+            userIdRegistration: req.user.id
+          }
+        });
+
+        // Actualizar evento con la ruta de la foto (usando raw SQL por compatibilidad)
+        if (fotoPath) {
+          await tx.$executeRaw`
+            UPDATE tbl_eventos_encomienda
+            SET foto_evidencia_path = ${fotoPath}
+            WHERE id = ${evento.id}
+          `;
         }
-      });
 
-      // Actualizar evento con la ruta de la foto (usando raw SQL por compatibilidad)
+        return enc;
+      });
+    } catch (errorTx) {
+      // La transaccion fallo: limpiar la foto ya subida para no dejar huerfanos
       if (fotoPath) {
-        await tx.$executeRaw`
-          UPDATE tbl_eventos_encomienda
-          SET foto_evidencia_path = ${fotoPath}
-          WHERE id = ${evento.id}
-        `;
+        await eliminarFotoEntrega(fotoPath).catch((errLimpieza) => {
+          console.error('Error limpiando foto de retiro fallido:', errLimpieza.message);
+        });
       }
-
-      return enc;
-    });
+      throw errorTx;
+    }
 
     // Auditoria
     await registrarAuditoria(req.user.id, 'ENCOMIENDA_RETIRADA', 'ENCOMIENDA', id, {

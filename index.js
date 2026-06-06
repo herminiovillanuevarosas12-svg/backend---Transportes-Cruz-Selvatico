@@ -54,15 +54,22 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 app.use(helmet());
 
 // CORS - Configurado segun el entorno
-// En desarrollo: permite localhost:5173 (Vite)
-// En produccion: permite el dominio configurado en Railway
+// En desarrollo: permite cualquier http://localhost:<puerto>, porque Vite
+//   cambia de puerto automaticamente (5173 -> 5174 -> 5175...) cuando el
+//   puerto por defecto esta ocupado por otro proyecto.
+// En produccion: permite SOLO el dominio configurado en Railway (FRONTEND_URL).
+const isDev = (process.env.NODE_ENV || 'development') !== 'production';
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: isDev
+    ? /^http:\/\/localhost:\d+$/
+    : (process.env.FRONTEND_URL || 'http://localhost:5173'),
   credentials: true
 }));
 
 // Body parsing
-app.use(express.json({ limit: '10mb' }));
+// 15mb: las fotos de evidencia permiten hasta 10MB raw, que en base64
+// ocupan ~13.4MB (+overhead JSON). Con 10mb el parser devolvia 413.
+app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Servir archivos de uploads (local o S3)
