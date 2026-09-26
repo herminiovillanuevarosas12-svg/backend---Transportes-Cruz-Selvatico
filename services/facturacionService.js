@@ -15,7 +15,7 @@
 const prisma = require('../config/prisma');
 const keyfacilService = require('./keyfacilService');
 const { mapearRespuestaEmision, resolverArchivo, ArchivoKeyfacilError } = require('./keyfacilArchivosService');
-const { getFechaPeruISO } = require('../utils/dateUtils');
+const { utcNow, toIsoInstant, civilDatePeruToIsoInstant } = require('../utils/dateUtils');
 const { normalizarClienteComprobante } = require('../utils/clienteComprobante');
 
 /**
@@ -56,10 +56,12 @@ const construirPayloadKeyfacil = (config, data) => {
     items
   } = data;
 
-  // Formatear fecha YYYY-MM-DD
+  // KEYFACIL interpreta una fecha sin hora ("2026-09-04") como medianoche UTC y la
+  // muestra en hora de Lima: el comprobante queda fechado el día anterior a las 19:00.
+  // Se envía siempre un instante ISO 8601 completo en UTC ("2026-09-04T15:15:42Z").
   const fechaFormateada = fechaEmision instanceof Date
-    ? fechaEmision.toISOString().split('T')[0]
-    : fechaEmision;
+    ? toIsoInstant(fechaEmision)
+    : civilDatePeruToIsoInstant(fechaEmision);
 
   // Estructura plana según Manual de Integración KEYFACIL
   // KEYFACIL calcula automáticamente los totales desde los items
@@ -239,8 +241,9 @@ const emitirComprobante = async ({
     tipoComprobante,
     serie,
     numero,
-    // Fecha civil en Perú: debe coincidir con fecha_emision guardada (America/Lima) y ser "la fecha actual" para KEYFACIL
-    fechaEmision: getFechaPeruISO(),
+    // Instante real de emisión: KEYFACIL lo convierte a fecha y hora de Lima,
+    // coincidiendo con fecha_emision/hora_emision guardadas (NOW() AT TIME ZONE 'America/Lima')
+    fechaEmision: utcNow(),
     cliente: clienteNormalizado,
     items: itemsCalculados,
     totales

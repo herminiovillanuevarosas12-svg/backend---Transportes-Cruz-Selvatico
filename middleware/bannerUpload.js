@@ -8,6 +8,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const s3Service = require('../services/s3Service');
+const { eliminarArchivo } = require('../services/almacenamientoService');
 
 // Directorio base para uploads locales
 const UPLOADS_BASE = path.join(__dirname, '..', 'uploads');
@@ -83,34 +84,11 @@ const procesarBannerFile = async (file, tipo = 'banner') => {
 };
 
 /**
- * Función para eliminar archivo de banner o galería
- * @param {string} urlOrPath - URL de S3 o ruta relativa local
+ * Eliminar archivo de banner, galería o landing (bucket o disco local según configuración)
+ * @param {string} urlOrPath - key relativa de S3 o URL completa de Wasabi
  * @returns {Promise<boolean>}
  */
-const eliminarArchivoBanner = async (urlOrPath) => {
-  if (!urlOrPath) return false;
-
-  if (urlOrPath.includes('wasabisys.com')) {
-    // Es una URL de S3: extraer key y eliminar
-    const url = new URL(urlOrPath);
-    const key = url.pathname.split('/').slice(2).join('/');
-    return await s3Service.deleteFile(key);
-  } else {
-    // Es una ruta local: eliminar archivo
-    const fullPath = path.join(UPLOADS_BASE, urlOrPath);
-
-    if (fs.existsSync(fullPath)) {
-      try {
-        fs.unlinkSync(fullPath);
-        return true;
-      } catch (error) {
-        console.error('Error eliminando archivo:', error.message);
-        return false;
-      }
-    }
-    return false;
-  }
-};
+const eliminarArchivoBanner = (urlOrPath) => eliminarArchivo(urlOrPath, { uploadsBase: UPLOADS_BASE });
 
 /**
  * Función helper para guardar imagen desde base64

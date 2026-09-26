@@ -267,9 +267,64 @@ const isBeforeToday = (dateStr) => {
   return inputDate < todayPeru;
 };
 
+/**
+ * Offset fijo de Perú. America/Lima no aplica horario de verano desde 1994.
+ */
+const PERU_UTC_OFFSET = '-05:00';
+
+/**
+ * Formatea un instante como ISO 8601 en UTC sin milisegundos: "2026-09-04T15:15:42Z".
+ *
+ * Es el formato con el que KEYFACIL interpreta correctamente fecha y hora. Una fecha
+ * sin hora ("2026-09-04") la toma como medianoche UTC y, al convertirla a hora de Lima,
+ * el comprobante queda fechado el día anterior a las 19:00:00.
+ * @param {Date|string|number} value - Instante (Date, ISO con zona o epoch ms)
+ * @returns {string|null} ISO UTC con "Z", o null si es vacío o inválido
+ */
+const toIsoInstant = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+};
+
+/**
+ * Convierte una fecha civil de Perú al instante de su medianoche en Lima, en ISO UTC.
+ * "2026-09-04" -> "2026-09-04T05:00:00Z"
+ *
+ * Acepta "YYYY-MM-DD", un Date a medianoche UTC (como devuelve parseCivilDate) o un
+ * string ISO con hora y zona, que se respeta como instante.
+ * @param {Date|string} value - Fecha civil
+ * @returns {string|null} ISO UTC con "Z", o null si es vacío o inválido
+ */
+const civilDatePeruToIsoInstant = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+
+  let ymd = null;
+  if (value instanceof Date) {
+    if (isNaN(value.getTime())) return null;
+    ymd = value.toISOString().split('T')[0];
+  } else if (typeof value === 'string') {
+    const texto = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
+      ymd = texto;
+    } else if (/^\d{4}-\d{2}-\d{2}T/.test(texto)) {
+      return toIsoInstant(texto);
+    } else {
+      return null;
+    }
+  } else {
+    return null;
+  }
+
+  return toIsoInstant(`${ymd}T00:00:00${PERU_UTC_OFFSET}`);
+};
+
 module.exports = {
   utcNow,
   toUtcIso,
+  toIsoInstant,
+  civilDatePeruToIsoInstant,
   parseClientDateTime,
   parseCivilDate,
   parseTime,

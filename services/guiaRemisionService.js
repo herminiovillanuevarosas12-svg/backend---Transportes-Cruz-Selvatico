@@ -22,7 +22,7 @@
 const prisma = require('../config/prisma');
 const keyfacilService = require('./keyfacilService');
 const { mapearRespuestaEmision, resolverArchivo, ArchivoKeyfacilError } = require('./keyfacilArchivosService');
-const { utcNow } = require('../utils/dateUtils');
+const { civilDatePeruToIsoInstant } = require('../utils/dateUtils');
 const { detectarTipoDocumento } = require('../utils/documentoIdentidad');
 
 /**
@@ -75,12 +75,9 @@ const construirPayloadGuia = (config, data) => {
     items
   } = data;
 
-  const formatFecha = (fecha) => {
-    if (fecha instanceof Date) {
-      return fecha.toISOString().split('T')[0];
-    }
-    return fecha;
-  };
+  // KEYFACIL interpreta una fecha sin hora como medianoche UTC (día anterior en Lima):
+  // se envía el instante de la medianoche de Lima de la fecha civil elegida
+  const formatFecha = (fecha) => civilDatePeruToIsoInstant(fecha);
 
   const payload = {
     // Cabecera
@@ -188,7 +185,7 @@ const emitirGuia = async ({
       id_encomienda,
       estado, user_id_registration
     ) VALUES (
-      ${serie}, ${numero}, CURRENT_DATE, ${fechaInicioTraslado}::date,
+      ${serie}, ${numero}, (NOW() AT TIME ZONE 'America/Lima')::DATE, ${fechaInicioTraslado}::date,
       ${motivoTraslado}, ${descripcionMotivo || null}, ${transporteTipo}, ${transporteTipo},
       ${pesoBrutoTotal}, ${numeroBultos || 1},
       ${ubigeoPartida}, ${direccionPartida},

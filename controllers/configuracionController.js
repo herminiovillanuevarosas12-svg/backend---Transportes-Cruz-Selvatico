@@ -3,8 +3,25 @@
  * Controlador para configuracion del sistema
  */
 
+const { Prisma } = require('@prisma/client');
 const prisma = require('../config/prisma');
 const { registrarAuditoria } = require('../services/auditoriaService');
+
+// Columnas generales que devuelve la actualización de configuración del sistema
+const COLUMNAS_CONFIG_SISTEMA = Prisma.sql`
+  id,
+  nombre_empresa as "nombreEmpresa",
+  ruc,
+  direccion,
+  telefono,
+  precio_base_pasaje as "precioBasePasaje",
+  precio_base_encomienda_kg as "precioBaseEncomiendaKg",
+  tiempo_reserva_minutos as "tiempoReservaMinutos",
+  capacidad_default_bus as "capacidadDefaultBus",
+  soles_por_punto as "solesPorPunto",
+  puntos_por_sol_descuento as "puntosPorSolDescuento",
+  politicas_encomienda as "politicasEncomienda"
+`;
 
 // Valores por defecto
 const DEFAULTS = {
@@ -129,18 +146,43 @@ const actualizarConfiguracionSistema = async (req, res) => {
       politicasEncomienda
     } = req.body;
 
-    // Desactivar configuracion anterior
-    await prisma.$executeRaw`
-      UPDATE tbl_configuracion_sistema
-      SET activo = false,
-          date_time_modification = NOW(),
-          user_id_modification = ${req.user.id}
+    const valores = {
+      nombreEmpresa: nombreEmpresa || DEFAULTS.nombreEmpresa,
+      ruc: ruc || DEFAULTS.ruc,
+      direccion: direccion || DEFAULTS.direccion,
+      telefono: telefono || DEFAULTS.telefono,
+      precioBasePasaje: parseFloat(precioBasePasaje) || DEFAULTS.precioBasePasaje,
+      precioBaseEncomiendaKg: parseFloat(precioBaseEncomiendaKg) || DEFAULTS.precioBaseEncomiendaKg,
+      tiempoReservaMinutos: parseInt(tiempoReservaMinutos) || DEFAULTS.tiempoReservaMinutos,
+      capacidadDefaultBus: parseInt(capacidadDefaultBus) || DEFAULTS.capacidadDefaultBus,
+      solesPorPunto: parseFloat(solesPorPunto) || DEFAULTS.solesPorPunto,
+      puntosPorSolDescuento: parseFloat(puntosPorSolDescuento) || DEFAULTS.puntosPorSolDescuento,
+      politicasEncomienda: politicasEncomienda || DEFAULTS.politicasEncomienda
+    };
+
+    // La configuración es una fila única que también guarda la landing (imágenes,
+    // redes, textos). Se actualiza EN SITIO para conservar esas columnas; solo se
+    // inserta cuando todavía no existe una configuración activa.
+    let result = await prisma.$queryRaw`
+      UPDATE tbl_configuracion_sistema SET
+        nombre_empresa = ${valores.nombreEmpresa},
+        ruc = ${valores.ruc},
+        direccion = ${valores.direccion},
+        telefono = ${valores.telefono},
+        precio_base_pasaje = ${valores.precioBasePasaje},
+        precio_base_encomienda_kg = ${valores.precioBaseEncomiendaKg},
+        tiempo_reserva_minutos = ${valores.tiempoReservaMinutos},
+        capacidad_default_bus = ${valores.capacidadDefaultBus},
+        soles_por_punto = ${valores.solesPorPunto},
+        puntos_por_sol_descuento = ${valores.puntosPorSolDescuento},
+        politicas_encomienda = ${valores.politicasEncomienda},
+        date_time_modification = NOW(),
+        user_id_modification = ${req.user.id}
       WHERE activo = true
+      RETURNING ${COLUMNAS_CONFIG_SISTEMA}
     `;
 
-    // Intentar crear nueva configuracion con todas las columnas
-    let result;
-    try {
+    if (!result || result.length === 0) {
       result = await prisma.$queryRaw`
         INSERT INTO tbl_configuracion_sistema (
           nombre_empresa,
@@ -158,82 +200,23 @@ const actualizarConfiguracionSistema = async (req, res) => {
           user_id_registration,
           date_time_registration
         ) VALUES (
-          ${nombreEmpresa || 'Transportes Herminio'},
-          ${ruc || ''},
-          ${direccion || ''},
-          ${telefono || ''},
-          ${parseFloat(precioBasePasaje) || 25.00},
-          ${parseFloat(precioBaseEncomiendaKg) || 5.00},
-          ${parseInt(tiempoReservaMinutos) || 30},
-          ${parseInt(capacidadDefaultBus) || 40},
-          ${parseFloat(solesPorPunto) || 10.00},
-          ${parseFloat(puntosPorSolDescuento) || 10.00},
-          ${politicasEncomienda || DEFAULTS.politicasEncomienda},
+          ${valores.nombreEmpresa},
+          ${valores.ruc},
+          ${valores.direccion},
+          ${valores.telefono},
+          ${valores.precioBasePasaje},
+          ${valores.precioBaseEncomiendaKg},
+          ${valores.tiempoReservaMinutos},
+          ${valores.capacidadDefaultBus},
+          ${valores.solesPorPunto},
+          ${valores.puntosPorSolDescuento},
+          ${valores.politicasEncomienda},
           true,
           ${req.user.id},
           NOW()
         )
-        RETURNING
-          id,
-          nombre_empresa as "nombreEmpresa",
-          ruc,
-          direccion,
-          telefono,
-          precio_base_pasaje as "precioBasePasaje",
-          precio_base_encomienda_kg as "precioBaseEncomiendaKg",
-          tiempo_reserva_minutos as "tiempoReservaMinutos",
-          capacidad_default_bus as "capacidadDefaultBus",
-          soles_por_punto as "solesPorPunto",
-          puntos_por_sol_descuento as "puntosPorSolDescuento",
-          politicas_encomienda as "politicasEncomienda"
+        RETURNING ${COLUMNAS_CONFIG_SISTEMA}
       `;
-    } catch (queryError) {
-      // Si las columnas no existen, usar query sin ellas
-      if (queryError.code === '42703') {
-        result = await prisma.$queryRaw`
-          INSERT INTO tbl_configuracion_sistema (
-            nombre_empresa,
-            ruc,
-            direccion,
-            telefono,
-            precio_base_pasaje,
-            precio_base_encomienda_kg,
-            tiempo_reserva_minutos,
-            capacidad_default_bus,
-            activo,
-            user_id_registration,
-            date_time_registration
-          ) VALUES (
-            ${nombreEmpresa || 'Transportes Herminio'},
-            ${ruc || ''},
-            ${direccion || ''},
-            ${telefono || ''},
-            ${parseFloat(precioBasePasaje) || 25.00},
-            ${parseFloat(precioBaseEncomiendaKg) || 5.00},
-            ${parseInt(tiempoReservaMinutos) || 30},
-            ${parseInt(capacidadDefaultBus) || 40},
-            true,
-            ${req.user.id},
-            NOW()
-          )
-          RETURNING
-            id,
-            nombre_empresa as "nombreEmpresa",
-            ruc,
-            direccion,
-            telefono,
-            precio_base_pasaje as "precioBasePasaje",
-            precio_base_encomienda_kg as "precioBaseEncomiendaKg",
-            tiempo_reserva_minutos as "tiempoReservaMinutos",
-            capacidad_default_bus as "capacidadDefaultBus"
-        `;
-        // Agregar valores por defecto al resultado
-        result[0].solesPorPunto = parseFloat(solesPorPunto) || DEFAULTS.solesPorPunto;
-        result[0].puntosPorSolDescuento = parseFloat(puntosPorSolDescuento) || DEFAULTS.puntosPorSolDescuento;
-        result[0].politicasEncomienda = politicasEncomienda || DEFAULTS.politicasEncomienda;
-      } else {
-        throw queryError;
-      }
     }
 
     // Auditoria
