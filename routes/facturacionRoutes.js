@@ -25,6 +25,9 @@ router.get('/metricas', requirePermission('FACTURACION_VER'), facturacionControl
 // GET /api/facturacion/comprobantes - Listar comprobantes
 router.get('/comprobantes', requirePermission('FACTURACION_VER'), facturacionController.listarComprobantes);
 
+// GET /api/facturacion/comprobantes/:id/pdf - Descargar PDF del comprobante
+router.get('/comprobantes/:id/pdf', requirePermission('FACTURACION_VER'), facturacionController.descargarPdf);
+
 // GET /api/facturacion/comprobantes/:id/xml - Descargar XML del comprobante
 router.get('/comprobantes/:id/xml', requirePermission('FACTURACION_VER'), facturacionController.descargarXml);
 
@@ -49,6 +52,12 @@ router.post('/emitir/encomienda/:encomiendaId', requirePermission('FACTURACION_E
 
 // GET /api/facturacion/guias - Listar guías de remisión
 router.get('/guias', requirePermission('FACTURACION_VER'), facturacionController.listarGuias);
+
+// GET /api/facturacion/guias/:id/pdf - Descargar PDF de la guía
+router.get('/guias/:id/pdf', requirePermission('FACTURACION_VER'), facturacionController.descargarPdfGuia);
+
+// GET /api/facturacion/guias/:id/xml - Descargar XML de la guía
+router.get('/guias/:id/xml', requirePermission('FACTURACION_VER'), facturacionController.descargarXmlGuia);
 
 // GET /api/facturacion/guias/:id - Obtener guía por ID
 router.get('/guias/:id', requirePermission('FACTURACION_VER'), facturacionController.obtenerGuia);

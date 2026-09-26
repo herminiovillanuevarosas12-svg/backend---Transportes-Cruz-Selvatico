@@ -6,15 +6,17 @@
  * - 01: Factura
  * - 03: Boleta de Venta
  *
- * Tipos de documento cliente:
+ * Tipos de documento cliente (catálogo en utils/documentoIdentidad):
  * - 6: RUC
  * - 1: DNI
- * - -: Sin documento (VARIOS)
+ * - 4: Carnet de extranjería
  */
 
 const prisma = require('../config/prisma');
 const keyfacilService = require('./keyfacilService');
-const { utcNow } = require('../utils/dateUtils');
+const { mapearRespuestaEmision, resolverArchivo, ArchivoKeyfacilError } = require('./keyfacilArchivosService');
+const { getFechaPeruISO } = require('../utils/dateUtils');
+const { normalizarClienteComprobante } = require('../utils/clienteComprobante');
 
 /**
  * Obtener el siguiente número de comprobante
@@ -179,10 +181,9 @@ const emitirComprobante = async ({
     throw new Error('La serie de boleta debe empezar con B');
   }
 
-  // Validar documento del cliente
-  if (tipoComprobante === '01' && cliente.tipoDoc !== '6') {
-    throw new Error('Para facturas se requiere RUC (tipo documento 6)');
-  }
+  // Normalizar y validar cliente: tipo/número de documento coherentes, nombre o razón social
+  // obligatoria (recortada al tamaño de la columna). Es lo que se guarda y se envía a KEYFACIL.
+  const clienteNormalizado = normalizarClienteComprobante(cliente, tipoComprobante);
 
   // Determinar si incluye IGV: parámetro explícito > config > default (true)
   const aplicaIgv = incluyeIgv !== null ? incluyeIgv : !(config.exoneradoIgv === true);
@@ -208,7 +209,7 @@ const emitirComprobante = async ({
       ${tipoComprobante}, ${serie}, ${numero}, ${numeroCompleto},
       (NOW() AT TIME ZONE 'America/Lima')::DATE,
       (NOW() AT TIME ZONE 'America/Lima')::TIME,
-      ${cliente.tipoDoc}, ${cliente.numDoc}, ${cliente.razonSocial}, ${cliente.direccion || ''},
+      ${clienteNormalizado.tipoDoc}, ${clienteNormalizado.numDoc}, ${clienteNormalizado.razonSocial}, ${clienteNormalizado.direccion},
       ${totales.subtotal}, ${totales.igv}, ${totales.total}, 'PEN',
       ${origenTipo}, ${origenId}, 'PENDIENTE', ${userId}, ${comentario}
     )
@@ -238,8 +239,9 @@ const emitirComprobante = async ({
     tipoComprobante,
     serie,
     numero,
-    fechaEmision: utcNow(),
-    cliente,
+    // Fecha civil en Perú: debe coincidir con fecha_emision guardada (America/Lima) y ser "la fecha actual" para KEYFACIL
+    fechaEmision: getFechaPeruISO(),
+    cliente: clienteNormalizado,
     items: itemsCalculados,
     totales
   });
@@ -250,17 +252,23 @@ const emitirComprobante = async ({
   // Actualizar estado según respuesta
   if (response.success) {
     const keyfacilData = response.data;
+    // KEYFACIL no documenta su respuesta: se mapea de forma tolerante (URL, base64, anidado, etc.)
+    const datosEmision = mapearRespuestaEmision(keyfacilData);
+
+    if (!datosEmision.keyfacilId) {
+      console.warn(`[KEYFACIL] Comprobante ${idComprobante} aceptado sin ID reconocible. Claves recibidas: ${datosEmision.claves.join(', ')}`);
+    }
 
     await prisma.$executeRaw`
       UPDATE tbl_comprobantes
       SET estado = 'ACEPTADO',
-          keyfacil_id = ${keyfacilData.id || null},
+          keyfacil_id = ${datosEmision.keyfacilId},
           keyfacil_response = ${JSON.stringify(keyfacilData)}::jsonb,
-          hash_cpe = ${keyfacilData.hash || null},
-          codigo_qr = ${keyfacilData.qr || null},
-          pdf_url = ${keyfacilData.pdfUrl || null},
-          xml_url = ${keyfacilData.xmlUrl || null},
-          cdr_url = ${keyfacilData.cdrUrl || null},
+          hash_cpe = ${datosEmision.hash},
+          codigo_qr = ${datosEmision.qr},
+          pdf_url = ${datosEmision.pdfUrl},
+          xml_url = ${datosEmision.xmlUrl},
+          cdr_url = ${datosEmision.cdrUrl},
           intentos_envio = intentos_envio + 1
       WHERE id = ${idComprobante}
     `;
@@ -851,48 +859,45 @@ const actualizarConfiguracion = async (data, userId) => {
 };
 
 /**
- * Obtener XML de un comprobante consultando KEYFACIL
+ * Obtener el PDF o XML de un comprobante emitido en KEYFACIL.
+ * Orden: contenido guardado en keyfacil_response -> URL conocida -> consulta a KEYFACIL.
  * @param {number} id - ID del comprobante
- * @returns {Object} { xml, xmlUrl, numeroCompleto }
+ * @param {'pdf'|'xml'} tipo - Tipo de archivo
+ * @returns {Promise<{buffer: Buffer, contentType: string, nombre: string, origen: string}>}
  */
-const obtenerXmlComprobante = async (id) => {
+const obtenerArchivoComprobante = async (id, tipo) => {
   const comprobante = await prisma.$queryRaw`
-    SELECT id, keyfacil_id as "keyfacilId", xml_url as "xmlUrl",
+    SELECT id, estado,
+           keyfacil_id as "keyfacilId",
+           keyfacil_response as "keyfacilResponse",
+           pdf_url as "pdfUrl",
+           xml_url as "xmlUrl",
            numero_completo as "numeroCompleto"
     FROM tbl_comprobantes WHERE id = ${id}
   `;
 
   if (!comprobante || comprobante.length === 0) {
-    throw new Error('Comprobante no encontrado');
+    throw new ArchivoKeyfacilError('Comprobante no encontrado', 404);
   }
 
   const comp = comprobante[0];
 
-  if (!comp.keyfacilId) {
-    throw new Error('Este comprobante no fue enviado a KEYFACIL');
-  }
-
-  // Consultar KEYFACIL con incluir_xml: true
-  const response = await keyfacilService.consultarComprobante(comp.keyfacilId, comp.id);
-
-  if (!response.success) {
-    throw new Error('Error al consultar comprobante en KEYFACIL');
-  }
-
-  const data = response.data;
-
-  // Actualizar xml_url en BD si KEYFACIL devolvió una nueva
-  if (data.xmlUrl && data.xmlUrl !== comp.xmlUrl) {
-    await prisma.$executeRaw`
-      UPDATE tbl_comprobantes SET xml_url = ${data.xmlUrl} WHERE id = ${id}
-    `;
-  }
-
-  return {
-    xml: data.xml || null,
-    xmlUrl: data.xmlUrl || comp.xmlUrl || null,
-    numeroCompleto: comp.numeroCompleto
-  };
+  return resolverArchivo({
+    tipo,
+    registro: {
+      keyfacilId: comp.keyfacilId,
+      keyfacilResponse: comp.keyfacilResponse,
+      urlGuardada: tipo === 'xml' ? comp.xmlUrl : comp.pdfUrl,
+      numeroCompleto: comp.numeroCompleto,
+      etiqueta: 'comprobante'
+    },
+    consultar: (keyfacilId) => keyfacilService.consultarComprobante(keyfacilId, comp.id),
+    guardarUrl: (url) => (tipo === 'xml'
+      ? prisma.$executeRaw`UPDATE tbl_comprobantes SET xml_url = ${url} WHERE id = ${id}`
+      : prisma.$executeRaw`UPDATE tbl_comprobantes SET pdf_url = ${url} WHERE id = ${id}`),
+    guardarKeyfacilId: (keyfacilId) =>
+      prisma.$executeRaw`UPDATE tbl_comprobantes SET keyfacil_id = ${keyfacilId} WHERE id = ${id} AND keyfacil_id IS NULL`
+  });
 };
 
 module.exports = {
@@ -905,7 +910,7 @@ module.exports = {
   anularComprobante: anularComprobanteLocal,
   listarComprobantes,
   obtenerComprobante,
-  obtenerXmlComprobante,
+  obtenerArchivoComprobante,
   obtenerMetricas,
   obtenerSeries,
   obtenerConfiguracion,

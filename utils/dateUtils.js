@@ -208,6 +208,23 @@ const getFechaPeruYYYYMMDD = () => {
 };
 
 /**
+ * Obtiene la fecha actual en Perú en formato ISO YYYY-MM-DD
+ * Para fechas civiles de documentos (ej: fecha_emision enviada a KEYFACIL),
+ * que deben coincidir con la fecha guardada en BD (NOW() AT TIME ZONE 'America/Lima')
+ * @returns {string} Fecha en formato YYYY-MM-DD
+ */
+const getFechaPeruISO = () => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Lima',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  // en-CA devuelve formato YYYY-MM-DD
+  return formatter.format(new Date());
+};
+
+/**
  * Verifica si una hora (en formato de BD) ya pasó para hoy
  * Compara con la hora actual en Perú
  * @param {Date|string} timeValue - Hora del horario (campo TIME de BD)
@@ -260,6 +277,7 @@ module.exports = {
   extractTimeFromDB,
   formatTimeForAPI,
   getFechaPeruYYYYMMDD,
+  getFechaPeruISO,
   hasTimePassed,
   isToday,
   isBeforeToday

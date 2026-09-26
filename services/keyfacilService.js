@@ -11,8 +11,26 @@
 
 const prisma = require('../config/prisma');
 
-// URL base de KEYFACIL
-const KEYFACIL_BASE_URL = 'https://api.vitekey.com/keyfact/integra/v1';
+// URLs de KEYFACIL según Manual de Integración (marzo 2026)
+const KEYFACIL_BASE_URL = 'https://api.vitekey.com/keyfact/integra/v1';       // PRODUCCION
+const KEYFACIL_DEMO_URL = 'https://api.vitekey.com/keyfact/integra-demo/v1';  // PRUEBAS
+const URLS_OFICIALES = [KEYFACIL_BASE_URL, KEYFACIL_DEMO_URL];
+
+/**
+ * Resolver la URL base según la configuración SUNAT
+ * - Una keyfacil_url personalizada (distinta de las oficiales, ej. un mock local) tiene prioridad
+ * - modo_produccion = false → ambiente de PRUEBAS (integra-demo)
+ * - en cualquier otro caso → PRODUCCION
+ * @param {Object} config - { keyfacilUrl, modoProduccion }
+ * @returns {string} URL base sin barra final
+ */
+const resolverBaseUrl = (config = {}) => {
+  const urlConfigurada = String(config.keyfacilUrl || '').trim().replace(/\/+$/, '');
+  if (urlConfigurada && !URLS_OFICIALES.includes(urlConfigurada)) {
+    return urlConfigurada;
+  }
+  return config.modoProduccion === false ? KEYFACIL_DEMO_URL : KEYFACIL_BASE_URL;
+};
 
 /**
  * Obtener configuración de facturación desde la BD
@@ -89,7 +107,7 @@ const logRequest = async ({
  */
 const makeRequest = async (endpoint, method, body, token, idComprobante = null, idGuia = null) => {
   const config = await getConfig();
-  const baseUrl = config.keyfacilUrl || KEYFACIL_BASE_URL;
+  const baseUrl = resolverBaseUrl(config);
   const url = `${baseUrl}${endpoint}`;
 
   const startTime = Date.now();
@@ -215,6 +233,9 @@ const anularGuiaRemision = async (keyfacilId, motivo, idGuia = null) => {
 
 module.exports = {
   getConfig,
+  resolverBaseUrl,
+  KEYFACIL_BASE_URL,
+  KEYFACIL_DEMO_URL,
   logRequest,
   enviarComprobante,
   consultarComprobante,

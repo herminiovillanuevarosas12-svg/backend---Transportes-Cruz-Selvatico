@@ -19,7 +19,7 @@
     "prisma:studio:local": "dotenv -e .env.local -- prisma studio",
     "seed": "node prisma/seed.js",
     "seed:local": "node -r dotenv/config prisma/seed.js dotenv_config_path=.env.local",
-    "test": "jest",
+    "test": "node --test \"tests/**/*.test.js\"",
     "backup": "node scripts/backup-database.js",
     "backup:local": "node -r dotenv/config scripts/backup-database.js dotenv_config_path=.env.local"
   },

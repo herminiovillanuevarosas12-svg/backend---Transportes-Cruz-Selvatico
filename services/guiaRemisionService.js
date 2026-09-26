@@ -21,7 +21,9 @@
 
 const prisma = require('../config/prisma');
 const keyfacilService = require('./keyfacilService');
+const { mapearRespuestaEmision, resolverArchivo, ArchivoKeyfacilError } = require('./keyfacilArchivosService');
 const { utcNow } = require('../utils/dateUtils');
+const { detectarTipoDocumento } = require('../utils/documentoIdentidad');
 
 /**
  * Obtener el siguiente número de guía
@@ -245,13 +247,19 @@ const emitirGuia = async ({
   // Actualizar estado según respuesta
   if (response.success) {
     const keyfacilData = response.data;
+    // KEYFACIL no documenta su respuesta: se mapea de forma tolerante (URL, base64, anidado, etc.)
+    const datosEmision = mapearRespuestaEmision(keyfacilData);
+
+    if (!datosEmision.keyfacilId) {
+      console.warn(`[KEYFACIL] Guía ${idGuia} aceptada sin ID reconocible. Claves recibidas: ${datosEmision.claves.join(', ')}`);
+    }
 
     await prisma.$executeRaw`
       UPDATE tbl_guias_remision
       SET estado = 'ACEPTADA',
-          keyfacil_id = ${keyfacilData.id || null},
+          keyfacil_id = ${datosEmision.keyfacilId},
           keyfacil_response = ${JSON.stringify(keyfacilData)}::jsonb,
-          pdf_url = ${keyfacilData.pdf_url || keyfacilData.pdfUrl || null}
+          pdf_url = ${datosEmision.pdfUrl}
       WHERE id = ${idGuia}
     `;
   } else {
@@ -319,12 +327,20 @@ const emitirGuiaDesdeEncomienda = async (encomiendaId, params) => {
   }];
 
   // Emitir guía con datos de la encomienda
-  // Usar datos del destinatario de la encomienda si no se proporcionan
-  const destinatarioDefault = {
-    tipoDoc: '1', // DNI por defecto
-    numDoc: encomienda.destinatario_dni || '00000000',
-    razonSocial: encomienda.destinatarioNombre
-  };
+  // Usar datos del destinatario de la encomienda si no se proporcionan.
+  // El receptor de la guía debe estar identificado con un documento real (nunca un relleno).
+  let destinatarioDefault = null;
+  if (!params.destinatario) {
+    const numDocDestinatario = String(encomienda.destinatario_dni || '').trim();
+    if (!numDocDestinatario) {
+      throw new Error('La encomienda no tiene documento del destinatario. Ingrese los datos del destinatario para emitir la guía');
+    }
+    destinatarioDefault = {
+      tipoDoc: detectarTipoDocumento(numDocDestinatario),
+      numDoc: numDocDestinatario,
+      razonSocial: encomienda.destinatarioNombre
+    };
+  }
 
   const guia = await emitirGuia({
     ...params,
@@ -542,6 +558,48 @@ const obtenerGuia = async (id) => {
   };
 };
 
+/**
+ * Obtener el PDF o XML de una guía emitida en KEYFACIL.
+ * Orden: contenido guardado en keyfacil_response -> URL conocida -> consulta a KEYFACIL.
+ * (tbl_guias_remision solo persiste pdf_url; el XML se resuelve desde la respuesta o por consulta)
+ * @param {number} id - ID de la guía
+ * @param {'pdf'|'xml'} tipo - Tipo de archivo
+ * @returns {Promise<{buffer: Buffer, contentType: string, nombre: string, origen: string}>}
+ */
+const obtenerArchivoGuia = async (id, tipo) => {
+  const guia = await prisma.$queryRaw`
+    SELECT id, estado,
+           keyfacil_id as "keyfacilId",
+           keyfacil_response as "keyfacilResponse",
+           pdf_url as "pdfUrl",
+           numero_completo as "numeroCompleto"
+    FROM tbl_guias_remision WHERE id = ${id}
+  `;
+
+  if (!guia || guia.length === 0) {
+    throw new ArchivoKeyfacilError('Guía de remisión no encontrada', 404);
+  }
+
+  const g = guia[0];
+
+  return resolverArchivo({
+    tipo,
+    registro: {
+      keyfacilId: g.keyfacilId,
+      keyfacilResponse: g.keyfacilResponse,
+      urlGuardada: tipo === 'pdf' ? g.pdfUrl : null,
+      numeroCompleto: g.numeroCompleto,
+      etiqueta: 'guía de remisión'
+    },
+    consultar: (keyfacilId) => keyfacilService.consultarGuiaRemision(keyfacilId, g.id),
+    guardarUrl: tipo === 'pdf'
+      ? (url) => prisma.$executeRaw`UPDATE tbl_guias_remision SET pdf_url = ${url} WHERE id = ${id}`
+      : undefined,
+    guardarKeyfacilId: (keyfacilId) =>
+      prisma.$executeRaw`UPDATE tbl_guias_remision SET keyfacil_id = ${keyfacilId} WHERE id = ${id} AND keyfacil_id IS NULL`
+  });
+};
+
 module.exports = {
   obtenerSiguienteNumero,
   construirPayloadGuia,
@@ -549,5 +607,6 @@ module.exports = {
   emitirGuiaDesdeEncomienda,
   anularGuia,
   listarGuias,
-  obtenerGuia
+  obtenerGuia,
+  obtenerArchivoGuia
 };

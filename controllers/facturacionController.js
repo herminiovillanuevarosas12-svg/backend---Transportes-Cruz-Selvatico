@@ -238,37 +238,77 @@ const emitirDesdeEncomienda = async (req, res) => {
 };
 
 /**
+ * Enviar un archivo (PDF/XML) resuelto por el servicio como descarga.
+ * Siempre se entregan bytes desde el backend: nunca se redirige a dominios externos
+ * (un redirect a KEYFACIL desde una petición XHR falla por CORS en el navegador).
+ */
+const enviarArchivo = (res, archivo) => {
+  res.setHeader('Content-Type', archivo.contentType);
+  res.setHeader('Content-Disposition', `attachment; filename="${archivo.nombre}"`);
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.send(archivo.buffer);
+};
+
+const responderErrorArchivo = (res, error, descripcion) => {
+  const status = Number.isInteger(error.status) ? error.status : 500;
+  if (status >= 500) {
+    console.error(`Error descargando ${descripcion}:`, error);
+  }
+  res.status(status).json({
+    error: error.message || `Error al descargar ${descripcion}`,
+    ...(error.detalles ? { detalles: error.detalles } : {})
+  });
+};
+
+/**
+ * Descargar PDF de un comprobante
+ * GET /api/facturacion/comprobantes/:id/pdf
+ */
+const descargarPdf = async (req, res) => {
+  try {
+    const archivo = await facturacionService.obtenerArchivoComprobante(parseInt(req.params.id), 'pdf');
+    enviarArchivo(res, archivo);
+  } catch (error) {
+    responderErrorArchivo(res, error, 'PDF del comprobante');
+  }
+};
+
+/**
  * Descargar XML de un comprobante
  * GET /api/facturacion/comprobantes/:id/xml
  */
 const descargarXml = async (req, res) => {
   try {
-    const { id } = req.params;
-    const result = await facturacionService.obtenerXmlComprobante(parseInt(id));
-
-    // Si KEYFACIL devolvió contenido XML directo
-    if (result.xml) {
-      let xmlContent = result.xml;
-
-      // Si viene en base64, decodificar
-      if (typeof xmlContent === 'string' && !xmlContent.trimStart().startsWith('<')) {
-        xmlContent = Buffer.from(xmlContent, 'base64').toString('utf-8');
-      }
-
-      res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="${result.numeroCompleto}.xml"`);
-      return res.send(xmlContent);
-    }
-
-    // Si hay URL al XML, redirigir
-    if (result.xmlUrl) {
-      return res.redirect(result.xmlUrl);
-    }
-
-    res.status(404).json({ error: 'XML no disponible para este comprobante' });
+    const archivo = await facturacionService.obtenerArchivoComprobante(parseInt(req.params.id), 'xml');
+    enviarArchivo(res, archivo);
   } catch (error) {
-    console.error('Error descargando XML:', error);
-    res.status(500).json({ error: error.message || 'Error al descargar XML' });
+    responderErrorArchivo(res, error, 'XML del comprobante');
+  }
+};
+
+/**
+ * Descargar PDF de una guía de remisión
+ * GET /api/facturacion/guias/:id/pdf
+ */
+const descargarPdfGuia = async (req, res) => {
+  try {
+    const archivo = await guiaRemisionService.obtenerArchivoGuia(parseInt(req.params.id), 'pdf');
+    enviarArchivo(res, archivo);
+  } catch (error) {
+    responderErrorArchivo(res, error, 'PDF de la guía');
+  }
+};
+
+/**
+ * Descargar XML de una guía de remisión
+ * GET /api/facturacion/guias/:id/xml
+ */
+const descargarXmlGuia = async (req, res) => {
+  try {
+    const archivo = await guiaRemisionService.obtenerArchivoGuia(parseInt(req.params.id), 'xml');
+    enviarArchivo(res, archivo);
+  } catch (error) {
+    responderErrorArchivo(res, error, 'XML de la guía');
   }
 };
 
@@ -644,6 +684,7 @@ module.exports = {
   // Comprobantes
   listarComprobantes,
   obtenerComprobante,
+  descargarPdf,
   descargarXml,
   emitirComprobante,
   emitirDesdeTicket,
@@ -655,6 +696,8 @@ module.exports = {
   emitirGuia,
   emitirGuiaDesdeEncomienda,
   anularGuia,
+  descargarPdfGuia,
+  descargarXmlGuia,
   // Configuración
   obtenerConfiguracionSunat,
   actualizarConfiguracionSunat,

@@ -12,6 +12,12 @@ const { guardarImagenBase64, eliminarFotoEntrega } = require('../middleware/uplo
 const { parsearImagenBase64 } = require('../services/s3Service');
 const QRCode = require('qrcode');
 const { utcNow, parseCivilDate } = require('../utils/dateUtils');
+const {
+  esTipoDocumentoValido,
+  esDocumentoValido,
+  detectarTipoDocumento,
+  mensajeErrorDocumento
+} = require('../utils/documentoIdentidad');
 
 /**
  * Obtener configuracion de puntos desde la BD
@@ -215,20 +221,15 @@ const registrar = async (req, res) => {
 
     if (!remitente?.nombre || !remitente?.dni || !remitente?.telefono) {
       return res.status(400).json({
-        error: 'Nombre, DNI y telefono del remitente son requeridos'
+        error: 'Nombre, documento y telefono del remitente son requeridos'
       });
     }
 
-    // Validar tipo de documento del remitente segun longitud
-    const tipoDocRemitente = remitente.tipoDocumento || (remitente.dni?.length === 11 ? '6' : '1');
-    if (tipoDocRemitente === '1' && remitente.dni?.length !== 8) {
+    // Validar tipo y formato del documento del remitente (DNI, CE o RUC)
+    const tipoDocRemitente = remitente.tipoDocumento || detectarTipoDocumento(remitente.dni);
+    if (!esTipoDocumentoValido(tipoDocRemitente) || !esDocumentoValido(tipoDocRemitente, remitente.dni)) {
       return res.status(400).json({
-        error: 'El DNI del remitente debe tener 8 digitos'
-      });
-    }
-    if (tipoDocRemitente === '6' && remitente.dni?.length !== 11) {
-      return res.status(400).json({
-        error: 'El RUC del remitente debe tener 11 digitos'
+        error: mensajeErrorDocumento(tipoDocRemitente, 'remitente')
       });
     }
 
@@ -236,6 +237,16 @@ const registrar = async (req, res) => {
       return res.status(400).json({
         error: 'Nombre y telefono del destinatario son requeridos'
       });
+    }
+
+    // Validar tipo y formato del documento del destinatario cuando se envía
+    if (destinatario.dni) {
+      const tipoDocDestinatario = destinatario.tipoDocumento || detectarTipoDocumento(destinatario.dni);
+      if (!esTipoDocumentoValido(tipoDocDestinatario) || !esDocumentoValido(tipoDocDestinatario, destinatario.dni)) {
+        return res.status(400).json({
+          error: mensajeErrorDocumento(tipoDocDestinatario, 'destinatario')
+        });
+      }
     }
 
     if (!paquete?.tipo || !paquete?.peso || !paquete?.alto || !paquete?.ancho || !paquete?.largo) {
@@ -921,7 +932,7 @@ const cambiarEstado = async (req, res) => {
 const retirar = async (req, res) => {
   try {
     const { id } = req.params;
-    const { dniRetiro, fotoBase64, nota, claveIngresada, tipoComprobante, clienteFactura } = req.body;
+    const { dniRetiro, nombreRetiro, fotoBase64, nota, claveIngresada, tipoComprobante, clienteFactura } = req.body;
 
     if (!dniRetiro) {
       return res.status(400).json({
@@ -1083,13 +1094,23 @@ const retirar = async (req, res) => {
           const precioParaComprobante = parseFloat(encomienda.precio_final ?? encomienda.precioCalculado);
 
           if (tipoComprobanteAEmitir === 'BOLETA') {
+            // La boleta se emite a quien paga y retira: nombre y documento de la MISMA persona.
+            // Si el frontend no envía el nombre, el del destinatario solo vale cuando el documento coincide.
+            const numDocRetiro = String(dniRetiro).trim();
+            const nombreQuienRetira = String(nombreRetiro || '').trim()
+              || (numDocRetiro === String(encomienda.destinatario_dni || '').trim() ? encomienda.destinatarioNombre : '');
+
+            if (!nombreQuienRetira) {
+              throw new Error('Se requiere el nombre de quien retira para emitir la boleta');
+            }
+
             comprobanteRetiro = await facturacionService.emitirComprobante({
               tipoComprobante: '03',
               serie: 'BT74',
               cliente: {
-                tipoDoc: '1',
-                numDoc: dniRetiro || encomienda.remitenteDni,
-                razonSocial: encomienda.destinatarioNombre,
+                tipoDoc: detectarTipoDocumento(numDocRetiro),
+                numDoc: numDocRetiro,
+                razonSocial: nombreQuienRetira,
                 direccion: ''
               },
               items: [{
