@@ -5,6 +5,7 @@
  */
 
 const prisma = require('../config/prisma');
+const { validarDocumento } = require('../utils/documentoIdentidad');
 
 /**
  * Listar clientes con filtros
@@ -214,19 +215,18 @@ const obtener = async (req, res) => {
 };
 
 /**
- * Obtener cliente por DNI
+ * Obtener cliente por documento exacto (DNI, carnet de extranjería o RUC)
  * GET /api/clientes/dni/:dni
  */
 const obtenerPorDni = async (req, res) => {
   try {
-    const { dni } = req.params;
-
-    if (!dni || dni.length !== 8) {
-      return res.status(400).json({ error: 'DNI invalido. Debe tener 8 digitos.' });
+    const documento = validarDocumento({ numero: req.params.dni, rol: 'cliente' });
+    if (documento.error) {
+      return res.status(400).json({ error: documento.error });
     }
 
     const cliente = await prisma.pasajero.findFirst({
-      where: { documentoIdentidad: dni },
+      where: { documentoIdentidad: documento.numero },
       include: {
         tickets: {
           where: { estado: 'EMITIDO' },
@@ -266,7 +266,7 @@ const obtenerPorDni = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error obteniendo cliente por DNI:', error);
+    console.error('Error obteniendo cliente por documento:', error);
     res.status(500).json({ error: 'Error al obtener cliente' });
   }
 };

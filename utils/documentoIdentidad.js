@@ -54,6 +54,29 @@ const mensajeErrorDocumento = (codigo, rol) => {
   return `El ${tipo.nombre} del ${rol} debe tener ${regla}`;
 };
 
+/**
+ * Quita espacios y pasa a mayúsculas (el carnet de extranjería puede llevar letras).
+ */
+const normalizarNumeroDocumento = (numero) => String(numero ?? '').replace(/\s+/g, '').toUpperCase();
+
+/**
+ * Normaliza y valida un documento recibido del frontend.
+ * Si el tipo no viene (o llega vacío) se deduce del número.
+ * @param {{ tipo?: string, numero?: string, rol?: string }} datos
+ * @returns {{ tipo: string|null, numero: string, error: string|null }}
+ */
+const validarDocumento = ({ tipo, numero, rol = 'cliente' } = {}) => {
+  const numeroLimpio = normalizarNumeroDocumento(numero);
+  if (!numeroLimpio) {
+    return { tipo: null, numero: '', error: `El documento del ${rol} es requerido` };
+  }
+  const tipoDoc = String(tipo ?? '').trim() || detectarTipoDocumento(numeroLimpio);
+  if (!esTipoDocumentoValido(tipoDoc) || !esDocumentoValido(tipoDoc, numeroLimpio)) {
+    return { tipo: tipoDoc, numero: numeroLimpio, error: mensajeErrorDocumento(tipoDoc, rol) };
+  }
+  return { tipo: tipoDoc, numero: numeroLimpio, error: null };
+};
+
 module.exports = {
   CODIGO_DNI,
   CODIGO_CE,
@@ -63,5 +86,7 @@ module.exports = {
   esTipoDocumentoValido,
   esDocumentoValido,
   detectarTipoDocumento,
-  mensajeErrorDocumento
+  mensajeErrorDocumento,
+  normalizarNumeroDocumento,
+  validarDocumento
 };

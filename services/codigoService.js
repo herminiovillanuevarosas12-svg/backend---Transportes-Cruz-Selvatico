@@ -62,7 +62,28 @@ const generarCodigoTracking = async (tx) => {
   return `ENC-${String(secuencial).padStart(8, '0')}`;
 };
 
+/**
+ * Normalizar un codigo de tracking ingresado por el usuario
+ * Acepta solo numeros ("245"), prefijo incompleto ("ENC-245", "enc245")
+ * o el codigo completo, y devuelve siempre ENC-NNNNNNNN.
+ * El formato antiguo ENC-YYYYMMDD-NNNNN y cualquier otra cadena se devuelven sin cambios.
+ * @param {string} entrada - Texto ingresado
+ * @returns {string} Codigo normalizado (cadena vacia si la entrada es vacia)
+ */
+const normalizarCodigoTracking = (entrada) => {
+  if (!entrada) return '';
+
+  const limpio = String(entrada).trim().toUpperCase();
+  if (!limpio) return '';
+
+  const coincidencia = limpio.match(/^(?:ENC-?)?(\d{1,8})$/);
+  if (!coincidencia) return limpio;
+
+  return `ENC-${coincidencia[1].padStart(8, '0')}`;
+};
+
 module.exports = {
   generarCodigoTicket,
-  generarCodigoTracking
+  generarCodigoTracking,
+  normalizarCodigoTracking
 };

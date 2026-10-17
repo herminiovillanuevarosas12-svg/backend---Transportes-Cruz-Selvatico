@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const encomiendasController = require('../controllers/encomiendasController');
+const manifiestosController = require('../controllers/manifiestosEncomiendaController');
 const { verifyToken, requirePermission, requireOwnPoint } = require('../middleware/authMiddleware');
 
 // GET /api/encomiendas - Listar encomiendas
@@ -13,6 +14,28 @@ router.get('/',
   verifyToken,
   requirePermission(['ENCOMIENDAS_LISTAR', 'ENCOMIENDAS_REGISTRAR']),
   encomiendasController.listar
+);
+
+// Manifiestos (antes de /:id para que "manifiestos" no se tome como ID)
+// GET /api/encomiendas/manifiestos - Listar manifiestos generados
+router.get('/manifiestos',
+  verifyToken,
+  requirePermission('ENCOMIENDAS_MANIFIESTO'),
+  manifiestosController.listar
+);
+
+// GET /api/encomiendas/manifiestos/:id - Obtener manifiesto (datos del PDF)
+router.get('/manifiestos/:id',
+  verifyToken,
+  requirePermission('ENCOMIENDAS_MANIFIESTO'),
+  manifiestosController.obtener
+);
+
+// POST /api/encomiendas/manifiestos - Generar manifiesto con encomiendas En ruta
+router.post('/manifiestos',
+  verifyToken,
+  requirePermission('ENCOMIENDAS_MANIFIESTO'),
+  manifiestosController.generar
 );
 
 // GET /api/encomiendas/tracking/:codigo - Obtener por tracking (incluye semi-publico)

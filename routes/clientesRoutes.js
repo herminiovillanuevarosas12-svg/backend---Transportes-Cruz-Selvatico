@@ -15,7 +15,7 @@ router.get('/stats',
   clientesController.stats
 );
 
-// GET /api/clientes/dni/:dni - Obtener cliente por DNI (antes de /:id para evitar conflictos)
+// GET /api/clientes/dni/:dni - Obtener cliente por documento exacto: DNI, CE o RUC (antes de /:id para evitar conflictos)
 router.get('/dni/:dni',
   verifyToken,
   requirePermission('CLIENTES_LISTAR'),

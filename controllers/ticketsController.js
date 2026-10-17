@@ -7,6 +7,7 @@ const prisma = require('../config/prisma');
 const { registrarAuditoria } = require('../services/auditoriaService');
 const { generarCodigoTicket } = require('../services/codigoService');
 const facturacionService = require('../services/facturacionService');
+const { validarDocumento } = require('../utils/documentoIdentidad');
 const {
   utcNow,
   parseCivilDate,
@@ -201,18 +202,17 @@ const vender = async (req, res) => {
       });
     }
 
-    // Validar tipo de documento del pasajero segun longitud
-    const tipoDocPasajero = pasajero.tipoDocumento || (pasajero.documentoIdentidad?.length === 11 ? '6' : '1');
-    if (tipoDocPasajero === '1' && pasajero.documentoIdentidad?.length !== 8) {
-      return res.status(400).json({
-        error: 'El DNI debe tener 8 digitos'
-      });
+    // Validar tipo y formato del documento del pasajero (DNI, carnet de extranjería o RUC)
+    const documentoPasajero = validarDocumento({
+      tipo: pasajero.tipoDocumento,
+      numero: pasajero.documentoIdentidad,
+      rol: 'pasajero'
+    });
+    if (documentoPasajero.error) {
+      return res.status(400).json({ error: documentoPasajero.error });
     }
-    if (tipoDocPasajero === '6' && pasajero.documentoIdentidad?.length !== 11) {
-      return res.status(400).json({
-        error: 'El RUC debe tener 11 digitos'
-      });
-    }
+    const tipoDocPasajero = documentoPasajero.tipo;
+    pasajero.documentoIdentidad = documentoPasajero.numero;
 
     if (!['EFECTIVO', 'YAPE', 'TARJETA'].includes(metodoPago)) {
       return res.status(400).json({
@@ -866,18 +866,17 @@ const venderInstantaneo = async (req, res) => {
       });
     }
 
-    // Validar tipo de documento del pasajero segun longitud
-    const tipoDocPasajero = pasajero.tipoDocumento || (pasajero.documentoIdentidad?.length === 11 ? '6' : '1');
-    if (tipoDocPasajero === '1' && pasajero.documentoIdentidad?.length !== 8) {
-      return res.status(400).json({
-        error: 'El DNI debe tener 8 digitos'
-      });
+    // Validar tipo y formato del documento del pasajero (DNI, carnet de extranjería o RUC)
+    const documentoPasajero = validarDocumento({
+      tipo: pasajero.tipoDocumento,
+      numero: pasajero.documentoIdentidad,
+      rol: 'pasajero'
+    });
+    if (documentoPasajero.error) {
+      return res.status(400).json({ error: documentoPasajero.error });
     }
-    if (tipoDocPasajero === '6' && pasajero.documentoIdentidad?.length !== 11) {
-      return res.status(400).json({
-        error: 'El RUC debe tener 11 digitos'
-      });
-    }
+    const tipoDocPasajero = documentoPasajero.tipo;
+    pasajero.documentoIdentidad = documentoPasajero.numero;
 
     if (!['EFECTIVO', 'YAPE', 'TARJETA'].includes(metodoPago)) {
       return res.status(400).json({

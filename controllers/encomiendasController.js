@@ -5,9 +5,10 @@
 
 const prisma = require('../config/prisma');
 const { registrarAuditoria } = require('../services/auditoriaService');
-const { generarCodigoTracking } = require('../services/codigoService');
+const { generarCodigoTracking, normalizarCodigoTracking } = require('../services/codigoService');
 const { calcularPrecioEncomienda } = require('../services/preciosService');
 const facturacionService = require('../services/facturacionService');
+const { obtenerManifiestosDeEncomiendas } = require('../services/manifiestoEncomiendaService');
 const { guardarImagenBase64, eliminarFotoEntrega } = require('../middleware/uploadMiddleware');
 const { parsearImagenBase64 } = require('../services/s3Service');
 const QRCode = require('qrcode');
@@ -16,7 +17,9 @@ const {
   esTipoDocumentoValido,
   esDocumentoValido,
   detectarTipoDocumento,
-  mensajeErrorDocumento
+  mensajeErrorDocumento,
+  normalizarNumeroDocumento,
+  validarDocumento
 } = require('../utils/documentoIdentidad');
 
 /**
@@ -139,8 +142,11 @@ const listar = async (req, res) => {
       prisma.encomienda.count({ where })
     ]);
 
+    // Marcar a qué manifiesto pertenece cada encomienda (null si a ninguno)
+    const manifiestos = await obtenerManifiestosDeEncomiendas(encomiendas.map((e) => e.id));
+
     res.json({
-      encomiendas,
+      encomiendas: encomiendas.map((e) => ({ ...e, manifiesto: manifiestos.get(e.id) || null })),
       pagination: {
         total,
         page: parseInt(page),
@@ -932,13 +938,19 @@ const cambiarEstado = async (req, res) => {
 const retirar = async (req, res) => {
   try {
     const { id } = req.params;
-    const { dniRetiro, nombreRetiro, fotoBase64, nota, claveIngresada, tipoComprobante, clienteFactura } = req.body;
+    const { nombreRetiro, fotoBase64, nota, claveIngresada, tipoComprobante, clienteFactura } = req.body;
 
-    if (!dniRetiro) {
-      return res.status(400).json({
-        error: 'El DNI de retiro es requerido'
-      });
+    // Documento de quien retira: DNI, carnet de extranjería o RUC según el catálogo
+    const documentoRetiro = validarDocumento({
+      tipo: req.body.tipoDocRetiro,
+      numero: req.body.dniRetiro,
+      rol: 'quien retira'
+    });
+    if (documentoRetiro.error) {
+      return res.status(400).json({ error: documentoRetiro.error });
     }
+    const dniRetiro = documentoRetiro.numero;
+    const tipoDocRetiro = documentoRetiro.tipo;
 
     // Foto de evidencia opcional: si se envia, validar tamano (max 10MB) y formato
     if (fotoBase64) {
@@ -1096,9 +1108,9 @@ const retirar = async (req, res) => {
           if (tipoComprobanteAEmitir === 'BOLETA') {
             // La boleta se emite a quien paga y retira: nombre y documento de la MISMA persona.
             // Si el frontend no envía el nombre, el del destinatario solo vale cuando el documento coincide.
-            const numDocRetiro = String(dniRetiro).trim();
+            const numDocRetiro = dniRetiro;
             const nombreQuienRetira = String(nombreRetiro || '').trim()
-              || (numDocRetiro === String(encomienda.destinatario_dni || '').trim() ? encomienda.destinatarioNombre : '');
+              || (numDocRetiro === normalizarNumeroDocumento(encomienda.destinatario_dni) ? encomienda.destinatarioNombre : '');
 
             if (!nombreQuienRetira) {
               throw new Error('Se requiere el nombre de quien retira para emitir la boleta');
@@ -1108,7 +1120,7 @@ const retirar = async (req, res) => {
               tipoComprobante: '03',
               serie: 'BT74',
               cliente: {
-                tipoDoc: detectarTipoDocumento(numDocRetiro),
+                tipoDoc: tipoDocRetiro,
                 numDoc: numDocRetiro,
                 razonSocial: nombreQuienRetira,
                 direccion: ''
@@ -1389,7 +1401,8 @@ const buscarPorDni = async (req, res) => {
  */
 const consultaPublica = async (req, res) => {
   try {
-    const { codigo } = req.params;
+    // Acepta el codigo completo (ENC-00000245) o solo el numero (245)
+    const codigo = normalizarCodigoTracking(req.params.codigo);
 
     if (!codigo) {
       return res.status(400).json({ error: 'El codigo de tracking es requerido' });

@@ -67,6 +67,7 @@ async function main() {
     { codigo: 'ENCOMIENDAS_ESCANEAR', nombre: 'Escanear QR encomienda', tipo: 'ACCION', recurso: 'encomiendas' },
     { codigo: 'ENCOMIENDAS_CAMBIAR_ESTADO', nombre: 'Cambiar estado encomienda', tipo: 'ACCION', recurso: 'encomiendas' },
     { codigo: 'ENCOMIENDAS_RETIRAR', nombre: 'Registrar retiro encomienda', tipo: 'ACCION', recurso: 'encomiendas' },
+    { codigo: 'ENCOMIENDAS_MANIFIESTO', nombre: 'Generar manifiesto de encomiendas', tipo: 'ACCION', recurso: 'encomiendas' },
     // Dashboard
     { codigo: 'DASHBOARD_VER', nombre: 'Ver dashboard', tipo: 'MENU', recurso: 'dashboard' },
     // Usuarios
