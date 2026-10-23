@@ -8,18 +8,11 @@ const router = express.Router();
 const tiposCarroController = require('../controllers/tiposCarroController');
 const { verifyToken, requirePermission } = require('../middleware/authMiddleware');
 
-// GET /api/tipos-carro - Listar todos los tipos de carro
+// GET /api/tipos-carro - Listar todos los tipos de carro (también para elegir el tipo de un bus)
 router.get('/',
   verifyToken,
-  requirePermission(['RUTAS_LISTAR', 'RUTAS_CREAR']),
+  requirePermission(['RUTAS_LISTAR', 'RUTAS_CREAR', 'BUSES_CREAR', 'BUSES_EDITAR']),
   tiposCarroController.listar
-);
-
-// GET /api/tipos-carro/:id - Obtener tipo de carro por ID
-router.get('/:id',
-  verifyToken,
-  requirePermission('RUTAS_LISTAR'),
-  tiposCarroController.obtener
 );
 
 // POST /api/tipos-carro - Crear tipo de carro

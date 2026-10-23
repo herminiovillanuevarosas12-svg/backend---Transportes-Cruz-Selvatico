@@ -4,11 +4,13 @@
  */
 
 const prisma = require('../config/prisma');
+const { EstadoEncomienda } = require('@prisma/client');
 const { registrarAuditoria } = require('../services/auditoriaService');
 const { generarCodigoTracking, normalizarCodigoTracking } = require('../services/codigoService');
 const { calcularPrecioEncomienda } = require('../services/preciosService');
 const facturacionService = require('../services/facturacionService');
 const { obtenerManifiestosDeEncomiendas } = require('../services/manifiestoEncomiendaService');
+const { filtroListado, puedeConsultar, evaluarTransicion } = require('../services/accesoEncomiendaService');
 const { guardarImagenBase64, eliminarFotoEntrega } = require('../middleware/uploadMiddleware');
 const { parsearImagenBase64 } = require('../services/s3Service');
 const QRCode = require('qrcode');
@@ -47,15 +49,6 @@ const obtenerConfiguracionPuntos = async () => {
   }
   // Valores por defecto
   return { solesPorPunto: 10.00, puntosPorSolDescuento: 10.00 };
-};
-
-// Transiciones permitidas (solo forward)
-const TRANSICIONES_PERMITIDAS = {
-  'REGISTRADO': ['EN_ALMACEN'],
-  'EN_ALMACEN': ['EN_RUTA'],
-  'EN_RUTA': ['LLEGO_A_DESTINO'],
-  'LLEGO_A_DESTINO': ['RETIRADO'],
-  'RETIRADO': []
 };
 
 /**
@@ -116,15 +109,11 @@ const listar = async (req, res) => {
       }
     }
 
-    // Si el usuario tiene punto asignado, filtrar
-    if (req.user.id_punto) {
+    // Usuario con punto: lo que registró su agencia y lo que le llegó
+    const filtroPunto = filtroListado(req.user.id_punto);
+    if (filtroPunto) {
       if (!where.AND) where.AND = [];
-      where.AND.push({
-        OR: [
-          { idPuntoOrigen: req.user.id_punto },
-          { idPuntoDestino: req.user.id_punto }
-        ]
-      });
+      where.AND.push(filtroPunto);
     }
 
     const [encomiendas, total] = await Promise.all([
@@ -143,7 +132,10 @@ const listar = async (req, res) => {
     ]);
 
     // Marcar a qué manifiesto pertenece cada encomienda (null si a ninguno)
-    const manifiestos = await obtenerManifiestosDeEncomiendas(encomiendas.map((e) => e.id));
+    const manifiestos = await obtenerManifiestosDeEncomiendas(
+      encomiendas.map((e) => e.id),
+      req.user.id_punto || null
+    );
 
     res.json({
       encomiendas: encomiendas.map((e) => ({ ...e, manifiesto: manifiestos.get(e.id) || null })),
@@ -222,6 +214,13 @@ const registrar = async (req, res) => {
     if (parseInt(idPuntoOrigen) === parseInt(idPuntoDestino)) {
       return res.status(400).json({
         error: 'El origen debe ser diferente al destino'
+      });
+    }
+
+    // La agencia que registra es el origen: así la encomienda aparece en su listado
+    if (req.user.id_punto && parseInt(idPuntoOrigen) !== req.user.id_punto) {
+      return res.status(400).json({
+        error: 'El punto de origen debe ser su agencia'
       });
     }
 
@@ -639,7 +638,7 @@ const obtener = async (req, res) => {
       }
     });
 
-    if (!encomienda) {
+    if (!encomienda || !puedeConsultar(req.user.id_punto, encomienda)) {
       return res.status(404).json({ error: 'Encomienda no encontrada' });
     }
 
@@ -669,7 +668,8 @@ const obtener = async (req, res) => {
         eventos: eventosConFoto,
         pagoAlRecojo: encomienda.pago_al_recojo || false,
         tieneClaveSeguridad: !!encomienda.clave_seguridad,
-        precioFinal: encomienda.precio_final || encomienda.precioCalculado
+        precioFinal: encomienda.precio_final || encomienda.precioCalculado,
+        transicion: evaluarTransicion(req.user.id_punto, encomienda)
       }
     });
   } catch (error) {
@@ -720,7 +720,7 @@ const buscarPorCodigo = async (req, res) => {
       });
     }
 
-    if (!encomienda) {
+    if (!encomienda || !puedeConsultar(req.user.id_punto, encomienda)) {
       return res.status(404).json({ error: 'Encomienda no encontrada' });
     }
 
@@ -746,7 +746,8 @@ const buscarPorCodigo = async (req, res) => {
         // Nuevos campos para pago al recojo y clave de seguridad
         pagoAlRecojo: encomienda.pago_al_recojo || false,
         tieneClaveSeguridad: !!encomienda.clave_seguridad,
-        precioFinal: encomienda.precio_final || encomienda.precioCalculado
+        precioFinal: encomienda.precio_final || encomienda.precioCalculado,
+        transicion: evaluarTransicion(req.user.id_punto, encomienda)
       }
     });
   } catch (error) {
@@ -804,7 +805,7 @@ const cambiarEstado = async (req, res) => {
     }
 
     // Validar que nuevoEstado sea un valor valido del enum
-    const ESTADOS_VALIDOS = ['REGISTRADO', 'EN_ALMACEN', 'EN_RUTA', 'LLEGO_A_DESTINO', 'RETIRADO'];
+    const ESTADOS_VALIDOS = Object.values(EstadoEncomienda);
     if (!ESTADOS_VALIDOS.includes(nuevoEstado)) {
       return res.status(400).json({
         error: 'Estado no valido',
@@ -813,38 +814,41 @@ const cambiarEstado = async (req, res) => {
     }
 
     const encomienda = await prisma.encomienda.findUnique({
-      where: { id: parseInt(id) }
+      where: { id: parseInt(id) },
+      include: {
+        puntoOrigen: { select: { nombre: true } },
+        puntoDestino: { select: { nombre: true } }
+      }
     });
 
     if (!encomienda) {
       return res.status(404).json({ error: 'Encomienda no encontrada' });
     }
 
-    // Validar que el usuario pertenezca al punto origen o destino de la encomienda
-    // Superadmin (sin punto asignado) puede modificar cualquier encomienda
-    if (req.user.id_punto) {
-      const perteneceAPunto = req.user.id_punto === encomienda.idPuntoOrigen ||
-                              req.user.id_punto === encomienda.idPuntoDestino;
+    const auditarCambioNoAutorizado = () => registrarAuditoria(req.user.id, 'CAMBIO_ESTADO_NO_AUTORIZADO', 'ENCOMIENDA', parseInt(id), {
+      codigoTracking: encomienda.codigoTracking,
+      idPuntoUsuario: req.user.id_punto,
+      idPuntoOrigen: encomienda.idPuntoOrigen,
+      idPuntoDestino: encomienda.idPuntoDestino,
+      estadoIntentado: nuevoEstado
+    });
 
-      if (!perteneceAPunto) {
-        await registrarAuditoria(req.user.id, 'CAMBIO_ESTADO_NO_AUTORIZADO', 'ENCOMIENDA', parseInt(id), {
-          codigoTracking: encomienda.codigoTracking,
-          idPuntoUsuario: req.user.id_punto,
-          idPuntoOrigen: encomienda.idPuntoOrigen,
-          idPuntoDestino: encomienda.idPuntoDestino,
-          estadoIntentado: nuevoEstado
-        });
-
-        return res.status(403).json({
-          error: 'No tiene permiso para modificar esta encomienda',
-          razon: 'La encomienda no pertenece a su punto de operacion'
-        });
-      }
+    // Quien no puede consultarla recibe lo mismo que si no existiera (queda auditado)
+    if (!puedeConsultar(req.user.id_punto, encomienda)) {
+      await auditarCambioNoAutorizado();
+      return res.status(404).json({ error: 'Encomienda no encontrada' });
     }
 
-    // Verificar transicion permitida
-    const estadosPermitidos = TRANSICIONES_PERMITIDAS[encomienda.estadoActual];
-    if (!estadosPermitidos.includes(nuevoEstado)) {
+    // Si es RETIRADO, usar el endpoint especifico
+    if (nuevoEstado === EstadoEncomienda.RETIRADO) {
+      return res.status(400).json({
+        error: 'Para registrar retiro use el endpoint POST /api/encomiendas/:id/retirar'
+      });
+    }
+
+    // Solo se avanza al siguiente estado del flujo, y solo el punto al que le corresponde
+    const transicion = evaluarTransicion(req.user.id_punto, encomienda);
+    if (nuevoEstado !== transicion.siguienteEstado) {
       await registrarAuditoria(req.user.id, 'TRANSICION_NO_PERMITIDA', 'ENCOMIENDA', id, {
         estadoActual: encomienda.estadoActual,
         estadoIntentado: nuevoEstado
@@ -853,14 +857,16 @@ const cambiarEstado = async (req, res) => {
       return res.status(400).json({
         error: 'No se puede cambiar a este estado',
         estadoActual: encomienda.estadoActual,
-        estadosPermitidos
+        estadosPermitidos: transicion.siguienteEstado ? [transicion.siguienteEstado] : []
       });
     }
 
-    // Si es RETIRADO, usar el endpoint especifico
-    if (nuevoEstado === 'RETIRADO') {
-      return res.status(400).json({
-        error: 'Para registrar retiro use el endpoint POST /api/encomiendas/:id/retirar'
+    if (!transicion.permitida) {
+      await auditarCambioNoAutorizado();
+
+      return res.status(403).json({
+        error: 'No tiene permiso para modificar esta encomienda',
+        razon: transicion.motivo
       });
     }
 
@@ -869,7 +875,7 @@ const cambiarEstado = async (req, res) => {
     // Superadmin sin punto: EN_ALMACEN usa origen, otros estados usan destino
     let idPuntoEvento = req.user.id_punto;
     if (!idPuntoEvento) {
-      idPuntoEvento = (nuevoEstado === 'EN_ALMACEN') ? encomienda.idPuntoOrigen : encomienda.idPuntoDestino;
+      idPuntoEvento = (nuevoEstado === EstadoEncomienda.EN_ALMACEN) ? encomienda.idPuntoOrigen : encomienda.idPuntoDestino;
     }
 
     // Actualizar estado y crear evento (con optimistic locking)
@@ -980,26 +986,34 @@ const retirar = async (req, res) => {
       return res.status(404).json({ error: 'Encomienda no encontrada' });
     }
 
-    if (encomienda.estadoActual !== 'LLEGO_A_DESTINO') {
+    const auditarRetiroNoAutorizado = () => registrarAuditoria(req.user.id, 'INTENTO_RETIRO_NO_AUTORIZADO', 'ENCOMIENDA', parseInt(id), {
+      codigoTracking: encomienda.codigoTracking,
+      idPuntoUsuario: req.user.id_punto,
+      idPuntoDestino: encomienda.idPuntoDestino,
+      nombrePuntoDestino: encomienda.puntoDestino?.nombre
+    });
+
+    // Quien no puede consultarla recibe lo mismo que si no existiera (queda auditado)
+    if (!puedeConsultar(req.user.id_punto, encomienda)) {
+      await auditarRetiroNoAutorizado();
+      return res.status(404).json({ error: 'Encomienda no encontrada' });
+    }
+
+    if (encomienda.estadoActual !== EstadoEncomienda.LLEGO_A_DESTINO) {
       return res.status(400).json({
         error: 'Solo se puede retirar encomiendas que han llegado a destino',
         estadoActual: encomienda.estadoActual
       });
     }
 
-    // Validar que el usuario pertenezca al punto de destino
-    // Solo usuarios del punto destino pueden registrar retiros (superadmin no tiene punto asignado)
-    if (req.user.id_punto && req.user.id_punto !== encomienda.idPuntoDestino) {
-      await registrarAuditoria(req.user.id, 'INTENTO_RETIRO_NO_AUTORIZADO', 'ENCOMIENDA', parseInt(id), {
-        codigoTracking: encomienda.codigoTracking,
-        idPuntoUsuario: req.user.id_punto,
-        idPuntoDestino: encomienda.idPuntoDestino,
-        nombrePuntoDestino: encomienda.puntoDestino?.nombre
-      });
+    // Solo el punto de destino registra la entrega (superadmin no tiene punto asignado)
+    const transicion = evaluarTransicion(req.user.id_punto, encomienda);
+    if (!transicion.permitida) {
+      await auditarRetiroNoAutorizado();
 
       return res.status(403).json({
         error: 'No tiene permiso para registrar el retiro de esta encomienda',
-        razon: 'Solo el punto de destino puede registrar la entrega',
+        razon: transicion.motivo,
         puntoDestino: encomienda.puntoDestino?.nombre
       });
     }
@@ -1230,7 +1244,7 @@ const imprimir = async (req, res) => {
       }
     });
 
-    if (!encomienda) {
+    if (!encomienda || !puedeConsultar(req.user.id_punto, encomienda)) {
       return res.status(404).json({ error: 'Encomienda no encontrada' });
     }
 
@@ -1318,10 +1332,10 @@ const generarQR = async (req, res) => {
 
     const encomienda = await prisma.encomienda.findUnique({
       where: { id: parseInt(id) },
-      select: { codigoTracking: true }
+      select: { codigoTracking: true, idPuntoOrigen: true, idPuntoDestino: true, estadoActual: true }
     });
 
-    if (!encomienda) {
+    if (!encomienda || !puedeConsultar(req.user.id_punto, encomienda)) {
       return res.status(404).json({ error: 'Encomienda no encontrada' });
     }
 
@@ -1351,13 +1365,15 @@ const buscarPorDni = async (req, res) => {
       return res.status(400).json({ error: 'Ingrese un DNI valido (minimo 6 digitos)' });
     }
 
+    const filtroPunto = filtroListado(req.user.id_punto);
     const encomiendas = await prisma.encomienda.findMany({
       where: {
         OR: [
           { remitenteDni: { equals: dni.trim(), mode: 'insensitive' } },
           { destinatario_dni: { equals: dni.trim(), mode: 'insensitive' } }
         ],
-        estadoActual: { not: 'RETIRADO' }
+        estadoActual: { not: EstadoEncomienda.RETIRADO },
+        ...(filtroPunto && { AND: [filtroPunto] })
       },
       include: {
         puntoOrigen: { select: { id: true, nombre: true, ciudad: true } },
@@ -1385,7 +1401,8 @@ const buscarPorDni = async (req, res) => {
           puntoDestino: e.puntoDestino
         },
         pagoAlRecojo: e.pago_al_recojo || false,
-        precioFinal: e.precio_final || e.precioCalculado
+        precioFinal: e.precio_final || e.precioCalculado,
+        transicion: evaluarTransicion(req.user.id_punto, e)
       })),
       total: encomiendas.length
     });

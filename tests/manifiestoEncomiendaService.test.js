@@ -10,7 +10,10 @@ const {
   validarEncomiendasParaManifiesto,
   calcularResumenManifiesto,
   formatearNumeroManifiesto,
-  combinarDatosEmpresa
+  combinarDatosEmpresa,
+  normalizarDatosViaje,
+  formatearViaje,
+  esManifiestoVisible
 } = require('../services/manifiestoEncomiendaService');
 
 // Fila tal como la devuelve la consulta de candidatas del servicio
@@ -96,29 +99,69 @@ describe('validarEncomiendasParaManifiesto', () => {
     assert.match(resultado.error, /MAN-000012/);
   });
 
-  test('responde 403 si un usuario con punto incluye encomiendas ajenas a su punto', () => {
+  test('responde 400 si las encomiendas tienen distinto origen', () => {
     const resultado = validarEncomiendasParaManifiesto({
       ids: [1, 2],
       encomiendas: [
-        encomienda({ id: 1, idPuntoOrigen: 10, idPuntoDestino: 20 }),
-        encomienda({ id: 2, codigoTracking: 'ENC-00000002', idPuntoOrigen: 30, idPuntoDestino: 40 })
+        encomienda({ id: 1, idPuntoOrigen: 10 }),
+        encomienda({ id: 2, codigoTracking: 'ENC-00000002', idPuntoOrigen: 30 })
       ],
-      idPuntoUsuario: 20
+      idPuntoUsuario: null,
+      idPuntoDestino: 20
     });
-    assert.equal(resultado.status, 403);
-    assert.match(resultado.error, /ENC-00000002/);
+    assert.equal(resultado.status, 400);
+    assert.match(resultado.error, /mismo origen/);
   });
 
-  test('un usuario con punto puede incluir encomiendas cuyo origen o destino es su punto', () => {
+  test('responde 403 si un usuario con punto incluye encomiendas que no salen de su punto', () => {
     const resultado = validarEncomiendasParaManifiesto({
       ids: [1, 2],
       encomiendas: [
         encomienda({ id: 1, idPuntoOrigen: 10, idPuntoDestino: 20 }),
-        encomienda({ id: 2, codigoTracking: 'ENC-00000002', idPuntoOrigen: 20, idPuntoDestino: 40 })
+        encomienda({ id: 2, codigoTracking: 'ENC-00000002', idPuntoOrigen: 10, idPuntoDestino: 20 })
       ],
-      idPuntoUsuario: 20
+      idPuntoUsuario: 20,
+      idPuntoDestino: 30
+    });
+    assert.equal(resultado.status, 403);
+  });
+
+  test('con punto, una encomienda ajena responde 403 sin revelar su código, estado ni manifiesto', () => {
+    const resultado = validarEncomiendasParaManifiesto({
+      ids: [1, 2],
+      encomiendas: [
+        encomienda({ id: 1, idPuntoOrigen: 10 }),
+        encomienda({ id: 2, codigoTracking: 'ENC-00000002', idPuntoOrigen: 30, estadoActual: 'LLEGO_A_DESTINO', idManifiesto: 12 })
+      ],
+      idPuntoUsuario: 10,
+      idPuntoDestino: 20
+    });
+    assert.equal(resultado.status, 403);
+    assert.doesNotMatch(resultado.error, /ENC-00000002|MAN-000012|LLEGO/);
+  });
+
+  test('un usuario con punto genera el manifiesto de lo que sale de su punto', () => {
+    const resultado = validarEncomiendasParaManifiesto({
+      ids: [1, 2],
+      encomiendas: [
+        encomienda({ id: 1, idPuntoOrigen: 10, idPuntoDestino: 20 }),
+        encomienda({ id: 2, codigoTracking: 'ENC-00000002', idPuntoOrigen: 10, idPuntoDestino: 40 })
+      ],
+      idPuntoUsuario: 10,
+      idPuntoDestino: 40
     });
     assert.equal(resultado, null);
+  });
+
+  test('responde 400 si el destino final es el mismo origen', () => {
+    const resultado = validarEncomiendasParaManifiesto({
+      ids: [1],
+      encomiendas: [encomienda({ id: 1, idPuntoOrigen: 10 })],
+      idPuntoUsuario: null,
+      idPuntoDestino: 10
+    });
+    assert.equal(resultado.status, 400);
+    assert.match(resultado.error, /destino/);
   });
 });
 
@@ -160,40 +203,130 @@ describe('combinarDatosEmpresa', () => {
   const sunat = {
     razonSocial: 'EMPRESA DE TURISMO CRUZ SELVATICO S.A.C.',
     ruc: '20600812727',
-    direccion: 'Cal. Fiscal 270'
+    direccion: 'Cal. Ingobert Witting Nro. 270',
+    departamento: 'PASCO',
+    provincia: 'OXAPAMPA',
+    distrito: 'POZUZO'
   };
   const sistema = {
     nombreEmpresa: 'CRUZ SELVATICO',
     ruc: '20111111111',
-    direccion: 'Av. Comercial 100',
-    telefono: '991075959'
+    direccion: 'Av. Comercial 100'
   };
 
-  test('prioriza los datos fiscales de SUNAT y toma el teléfono de la configuración del sistema', () => {
+  test('arma el domicilio fiscal con dirección y departamento-provincia-distrito de SUNAT', () => {
     assert.deepEqual(combinarDatosEmpresa(sunat, sistema), {
       razonSocial: 'EMPRESA DE TURISMO CRUZ SELVATICO S.A.C.',
       ruc: '20600812727',
-      direccion: 'Cal. Fiscal 270',
-      telefono: '991075959'
+      domicilioFiscal: 'Cal. Ingobert Witting Nro. 270 PASCO-OXAPAMPA-POZUZO'
     });
+  });
+
+  test('omite las partes de la ubicación que no existen', () => {
+    const { domicilioFiscal } = combinarDatosEmpresa({ ...sunat, departamento: null, distrito: '' }, null);
+    assert.equal(domicilioFiscal, 'Cal. Ingobert Witting Nro. 270 OXAPAMPA');
   });
 
   test('usa la configuración del sistema cuando no hay configuración SUNAT', () => {
     assert.deepEqual(combinarDatosEmpresa(null, sistema), {
       razonSocial: 'CRUZ SELVATICO',
       ruc: '20111111111',
-      direccion: 'Av. Comercial 100',
-      telefono: '991075959'
+      domicilioFiscal: 'Av. Comercial 100'
     });
   });
 
-  test('completa con el sistema los campos SUNAT vacíos y deja null lo que no existe', () => {
+  test('deja null lo que no existe en ninguna configuración', () => {
     assert.deepEqual(combinarDatosEmpresa({ razonSocial: 'RAZON SAC', ruc: '', direccion: null }, null), {
       razonSocial: 'RAZON SAC',
       ruc: null,
-      direccion: null,
-      telefono: null
+      domicilioFiscal: null
     });
+  });
+});
+
+describe('normalizarDatosViaje', () => {
+  const viaje = (datos = {}) => ({
+    idPuntoDestino: '20',
+    fechaSalida: '2026-10-15',
+    horaSalida: '7:05',
+    idConductor: 3,
+    idBus: '2',
+    ...datos
+  });
+
+  test('convierte ids a enteros y completa la hora con ceros', () => {
+    assert.deepEqual(normalizarDatosViaje(viaje()), {
+      viaje: { idPuntoDestino: 20, fechaSalida: '2026-10-15', horaSalida: '07:05', idConductor: 3, idBus: 2 }
+    });
+  });
+
+  test('exige los cinco datos del viaje', () => {
+    for (const campo of ['idPuntoDestino', 'fechaSalida', 'horaSalida', 'idConductor', 'idBus']) {
+      assert.ok(normalizarDatosViaje(viaje({ [campo]: '' })).error, campo);
+    }
+  });
+
+  test('rechaza una fecha que no existe', () => {
+    assert.ok(normalizarDatosViaje(viaje({ fechaSalida: '2026-02-31' })).error);
+    assert.ok(normalizarDatosViaje(viaje({ fechaSalida: '15/10/2026' })).error);
+  });
+
+  test('rechaza una hora fuera de rango', () => {
+    assert.ok(normalizarDatosViaje(viaje({ horaSalida: '25:00' })).error);
+    assert.ok(normalizarDatosViaje(viaje({ horaSalida: '10pm' })).error);
+  });
+
+  test('rechaza ids que no son enteros positivos', () => {
+    assert.ok(normalizarDatosViaje(viaje({ idConductor: 'abc' })).error);
+    assert.ok(normalizarDatosViaje(viaje({ idBus: -1 })).error);
+    assert.ok(normalizarDatosViaje(viaje({ idPuntoDestino: 1.5 })).error);
+  });
+
+  test('rechaza un cuerpo vacío', () => {
+    assert.ok(normalizarDatosViaje(undefined).error);
+  });
+});
+
+describe('formatearViaje', () => {
+  test('agrupa oficina, destino, salida, conductor y bus', () => {
+    assert.deepEqual(formatearViaje({
+      oficinaNombre: 'Terminal Pozuzo', oficinaCiudad: 'Pozuzo', oficinaDireccion: 'Jr. Principal 1',
+      destinoNombre: 'Agencia Huánuco', destinoCiudad: 'Huánuco', destinoDireccion: 'Av. Central 2',
+      fechaSalida: '2026-10-15', horaSalida: '22:00',
+      conductorNombre: 'Samuel Sedano', conductorLicencia: 'Q44460662',
+      busNumeroInterno: '0100', busPlaca: 'CAY715', busMarca: 'Mercedes Benz', busCertificadoInscripcion: '15M24045621E'
+    }), {
+      oficina: { nombre: 'Terminal Pozuzo', ciudad: 'Pozuzo', direccion: 'Jr. Principal 1' },
+      destino: { nombre: 'Agencia Huánuco', ciudad: 'Huánuco', direccion: 'Av. Central 2' },
+      fechaSalida: '2026-10-15',
+      horaSalida: '22:00',
+      conductor: { nombre: 'Samuel Sedano', licencia: 'Q44460662' },
+      bus: { numeroInterno: '0100', placa: 'CAY715', marca: 'Mercedes Benz', certificadoInscripcion: '15M24045621E' }
+    });
+  });
+
+  test('un manifiesto antiguo sin datos del viaje queda con nulls', () => {
+    assert.deepEqual(formatearViaje({}), {
+      oficina: null,
+      destino: null,
+      fechaSalida: null,
+      horaSalida: null,
+      conductor: { nombre: null, licencia: null },
+      bus: { numeroInterno: null, placa: null, marca: null, certificadoInscripcion: null }
+    });
+  });
+});
+
+describe('esManifiestoVisible', () => {
+  test('un usuario sin punto ve todos los manifiestos', () => {
+    assert.equal(esManifiestoVisible(null, 10), true);
+    assert.equal(esManifiestoVisible(null, null), true);
+  });
+
+  test('un usuario con punto ve solo los que salen de su punto', () => {
+    assert.equal(esManifiestoVisible(10, 10), true);
+    assert.equal(esManifiestoVisible(20, 10), false);
+    assert.equal(esManifiestoVisible(10, null), false);
   });
 });
 

@@ -7,15 +7,16 @@ const { registrarAuditoria } = require('../services/auditoriaService');
 const {
   ManifiestoError,
   normalizarIdsEncomiendas,
+  normalizarDatosViaje,
   crearManifiesto,
   obtenerManifiesto,
   listarManifiestos
 } = require('../services/manifiestoEncomiendaService');
 
 /**
- * Generar manifiesto con encomiendas En ruta
+ * Generar manifiesto con encomiendas En ruta de un mismo origen
  * POST /api/encomiendas/manifiestos
- * Body: { idsEncomiendas: number[] }
+ * Body: { idsEncomiendas: number[], idPuntoDestino, fechaSalida: 'YYYY-MM-DD', horaSalida: 'HH:MM', idConductor, idBus }
  */
 const generar = async (req, res) => {
   try {
@@ -24,18 +25,21 @@ const generar = async (req, res) => {
       return res.status(400).json({ error });
     }
 
-    const idManifiesto = await crearManifiesto({
-      ids,
-      idUsuario: req.user.id,
-      idPuntoUsuario: req.user.id_punto || null
-    });
+    const { viaje, error: errorViaje } = normalizarDatosViaje(req.body);
+    if (errorViaje) {
+      return res.status(400).json({ error: errorViaje });
+    }
 
-    const manifiesto = await obtenerManifiesto(idManifiesto);
+    const idPuntoUsuario = req.user.id_punto || null;
+    const idManifiesto = await crearManifiesto({ ids, viaje, idUsuario: req.user.id, idPuntoUsuario });
+
+    const manifiesto = await obtenerManifiesto(idManifiesto, idPuntoUsuario);
 
     await registrarAuditoria(req.user.id, 'MANIFIESTO_ENCOMIENDAS_GENERADO', 'MANIFIESTO_ENCOMIENDA', idManifiesto, {
       numero: manifiesto.numeroCompleto,
       cantidad: manifiesto.resumen.cantidad,
-      encomiendas: manifiesto.encomiendas.map((e) => e.codigoTracking)
+      encomiendas: manifiesto.encomiendas.map((e) => e.codigoTracking),
+      viaje
     });
 
     res.status(201).json({
@@ -61,7 +65,7 @@ const listar = async (req, res) => {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100);
 
-    res.json(await listarManifiestos({ page, limit }));
+    res.json(await listarManifiestos({ page, limit, idPuntoUsuario: req.user.id_punto || null }));
   } catch (error) {
     console.error('Error listando manifiestos:', error);
     res.status(500).json({ error: 'Error al listar manifiestos' });
@@ -79,7 +83,7 @@ const obtener = async (req, res) => {
       return res.status(400).json({ error: 'ID de manifiesto no válido' });
     }
 
-    const manifiesto = await obtenerManifiesto(id);
+    const manifiesto = await obtenerManifiesto(id, req.user.id_punto || null);
     if (!manifiesto) {
       return res.status(404).json({ error: 'Manifiesto no encontrado' });
     }

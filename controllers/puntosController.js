@@ -54,12 +54,14 @@ const obtener = async (req, res) => {
  */
 const crear = async (req, res) => {
   try {
-    const { nombre, tipo, ciudad, direccion } = req.body;
+    const { nombre, tipo, ciudad } = req.body;
+    // La dirección sale en el manifiesto de encomiendas (origen y destino)
+    const direccion = String(req.body.direccion ?? '').trim();
 
     // Validaciones
-    if (!nombre || !tipo || !ciudad) {
+    if (!nombre || !tipo || !ciudad || !direccion) {
       return res.status(400).json({
-        error: 'Nombre, tipo y ciudad son requeridos'
+        error: 'Nombre, tipo, ciudad y dirección son requeridos'
       });
     }
 
@@ -110,13 +112,19 @@ const actualizar = async (req, res) => {
       return res.status(404).json({ error: 'Punto no encontrado' });
     }
 
+    // La dirección sale en el manifiesto de encomiendas: no puede quedar vacía
+    const direccionFinal = direccion !== undefined ? String(direccion ?? '').trim() : puntoExistente.direccion;
+    if (!direccionFinal) {
+      return res.status(400).json({ error: 'La dirección del punto es requerida' });
+    }
+
     const punto = await prisma.punto.update({
       where: { id: parseInt(id) },
       data: {
         nombre: nombre || puntoExistente.nombre,
         tipo: tipo || puntoExistente.tipo,
         ciudad: ciudad || puntoExistente.ciudad,
-        direccion: direccion !== undefined ? direccion : puntoExistente.direccion,
+        direccion: direccionFinal,
         estado: estado !== undefined ? estado : puntoExistente.estado,
         userIdModification: req.user.id,
         dateTimeModification: utcNow()

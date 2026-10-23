@@ -26,29 +26,6 @@ const listar = async (req, res) => {
 };
 
 /**
- * Obtener tipo de carro por ID
- * GET /api/tipos-carro/:id
- */
-const obtener = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const tipoCarro = await prisma.tipoCarro.findUnique({
-      where: { id: parseInt(id) }
-    });
-
-    if (!tipoCarro) {
-      return res.status(404).json({ error: 'Tipo de carro no encontrado' });
-    }
-
-    res.json({ tipoCarro });
-  } catch (error) {
-    console.error('Error obteniendo tipo de carro:', error);
-    res.status(500).json({ error: 'Error al obtener tipo de carro' });
-  }
-};
-
-/**
  * Crear tipo de carro
  * POST /api/tipos-carro
  */
@@ -191,6 +168,20 @@ const eliminar = async (req, res) => {
       });
     }
 
+    // Verificar si hay buses de este tipo
+    const busesConTipo = await prisma.tbl_buses.count({
+      where: {
+        id_tipo_carro: parseInt(id),
+        estado: 1
+      }
+    });
+
+    if (busesConTipo > 0) {
+      return res.status(400).json({
+        error: `No se puede eliminar. Hay ${busesConTipo} bus(es) activo(s) de este tipo de carro`
+      });
+    }
+
     // Soft delete
     const tipoCarro = await prisma.tipoCarro.update({
       where: { id: parseInt(id) },
@@ -215,7 +206,6 @@ const eliminar = async (req, res) => {
 
 module.exports = {
   listar,
-  obtener,
   crear,
   actualizar,
   eliminar

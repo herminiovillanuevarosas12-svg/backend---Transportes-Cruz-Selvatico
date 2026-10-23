@@ -54,23 +54,25 @@ model RolPermiso {
 }
 
 model Punto {
-  id                   Int                @id @default(autoincrement())
-  nombre               String             @db.VarChar(100)
-  tipo                 TipoPunto
-  ciudad               String             @db.VarChar(100)
-  direccion            String?            @db.VarChar(255)
-  estado               Int                @default(1)
-  userIdRegistration   Int?               @map("user_id_registration")
-  dateTimeRegistration DateTime           @default(now()) @map("date_time_registration") @db.Timestamptz(6)
-  userIdModification   Int?               @map("user_id_modification")
-  dateTimeModification DateTime?          @map("date_time_modification") @db.Timestamptz(6)
-  encomiendasDestino   Encomienda[]       @relation("EncomiendaDestino")
-  encomiendasOrigen    Encomienda[]       @relation("EncomiendaOrigen")
-  eventosEncomienda    EventoEncomienda[]
-  tbl_festividades     tbl_festividades[]
-  rutasDestino         Ruta[]             @relation("RutaDestino")
-  rutasOrigen          Ruta[]             @relation("RutaOrigen")
-  usuarios             Usuario[]
+  id                                                                                 Int                          @id @default(autoincrement())
+  nombre                                                                             String                       @db.VarChar(100)
+  tipo                                                                               TipoPunto
+  ciudad                                                                             String                       @db.VarChar(100)
+  direccion                                                                          String?                      @db.VarChar(255)
+  estado                                                                             Int                          @default(1)
+  userIdRegistration                                                                 Int?                         @map("user_id_registration")
+  dateTimeRegistration                                                               DateTime                     @default(now()) @map("date_time_registration") @db.Timestamptz(6)
+  userIdModification                                                                 Int?                         @map("user_id_modification")
+  dateTimeModification                                                               DateTime?                    @map("date_time_modification") @db.Timestamptz(6)
+  encomiendasDestino                                                                 Encomienda[]                 @relation("EncomiendaDestino")
+  encomiendasOrigen                                                                  Encomienda[]                 @relation("EncomiendaOrigen")
+  eventosEncomienda                                                                  EventoEncomienda[]
+  tbl_festividades                                                                   tbl_festividades[]
+  tbl_manifiestos_encomienda_tbl_manifiestos_encomienda_id_punto_destinoTotbl_puntos tbl_manifiestos_encomienda[] @relation("tbl_manifiestos_encomienda_id_punto_destinoTotbl_puntos")
+  tbl_manifiestos_encomienda_tbl_manifiestos_encomienda_id_punto_origenTotbl_puntos  tbl_manifiestos_encomienda[] @relation("tbl_manifiestos_encomienda_id_punto_origenTotbl_puntos")
+  rutasDestino                                                                       Ruta[]                       @relation("RutaDestino")
+  rutasOrigen                                                                        Ruta[]                       @relation("RutaOrigen")
+  usuarios                                                                           Usuario[]
 
   @@map("tbl_puntos")
 }
@@ -104,14 +106,15 @@ model Usuario {
 }
 
 model TipoCarro {
-  id          Int       @id @default(autoincrement())
-  nombre      String    @db.VarChar(100)
+  id          Int         @id @default(autoincrement())
+  nombre      String      @db.VarChar(100)
   descripcion String?
-  estado      Int?      @default(1)
-  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdBy   Int?      @map("created_by")
-  updatedAt   DateTime? @map("updated_at") @db.Timestamptz(6)
-  updatedBy   Int?      @map("updated_by")
+  estado      Int?        @default(1)
+  createdAt   DateTime?   @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy   Int?        @map("created_by")
+  updatedAt   DateTime?   @map("updated_at") @db.Timestamptz(6)
+  updatedBy   Int?        @map("updated_by")
+  tbl_buses   tbl_buses[]
   rutas       Ruta[]
 
   @@index([estado], map: "idx_tipos_carro_estado")
@@ -984,13 +987,61 @@ model tbl_manifiesto_encomienda_items {
 }
 
 model tbl_manifiestos_encomienda {
-  id                              Int                               @id @default(autoincrement())
-  fecha_emision                   DateTime                          @default(now()) @db.Timestamptz(6)
-  id_usuario_emision              Int
-  user_id_registration            Int?
-  date_time_registration          DateTime?                         @default(now()) @db.Timestamptz(6)
-  tbl_manifiesto_encomienda_items tbl_manifiesto_encomienda_items[]
-  tbl_usuarios                    Usuario                           @relation(fields: [id_usuario_emision], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id                                                                 Int                               @id @default(autoincrement())
+  fecha_emision                                                      DateTime                          @default(now()) @db.Timestamptz(6)
+  id_usuario_emision                                                 Int
+  user_id_registration                                               Int?
+  date_time_registration                                             DateTime?                         @default(now()) @db.Timestamptz(6)
+  id_punto_origen                                                    Int?
+  id_punto_destino                                                   Int?
+  fecha_salida                                                       DateTime?                         @db.Date
+  hora_salida                                                        DateTime?                         @db.Time(6)
+  conductor_nombre                                                   String?                           @db.VarChar(300)
+  conductor_licencia                                                 String?                           @db.VarChar(20)
+  bus_numero_interno                                                 String?                           @db.VarChar(20)
+  bus_placa                                                          String?                           @db.VarChar(10)
+  bus_marca                                                          String?                           @db.VarChar(50)
+  bus_certificado_inscripcion                                        String?                           @db.VarChar(30)
+  tbl_manifiesto_encomienda_items                                    tbl_manifiesto_encomienda_items[]
+  tbl_puntos_tbl_manifiestos_encomienda_id_punto_destinoTotbl_puntos Punto?                            @relation("tbl_manifiestos_encomienda_id_punto_destinoTotbl_puntos", fields: [id_punto_destino], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tbl_puntos_tbl_manifiestos_encomienda_id_punto_origenTotbl_puntos  Punto?                            @relation("tbl_manifiestos_encomienda_id_punto_origenTotbl_puntos", fields: [id_punto_origen], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tbl_usuarios                                                       Usuario                           @relation(fields: [id_usuario_emision], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([id_punto_origen], map: "idx_manifiestos_punto_origen")
+}
+
+model tbl_buses {
+  id                      Int       @id @default(autoincrement())
+  id_tipo_carro           Int
+  numero_interno          String    @db.VarChar(20)
+  placa                   String    @db.VarChar(10)
+  marca                   String    @db.VarChar(50)
+  certificado_inscripcion String    @db.VarChar(30)
+  estado                  Int       @default(1)
+  user_id_registration    Int?
+  date_time_registration  DateTime? @default(now()) @db.Timestamptz(6)
+  user_id_modification    Int?
+  date_time_modification  DateTime? @db.Timestamptz(6)
+  tbl_tipos_carro         TipoCarro @relation(fields: [id_tipo_carro], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([estado], map: "idx_buses_estado")
+  @@index([id_tipo_carro], map: "idx_buses_tipo_carro")
+}
+
+model tbl_conductores {
+  id                     Int       @id @default(autoincrement())
+  tipo_documento         String    @db.VarChar(1)
+  numero_documento       String    @db.VarChar(20)
+  nombres                String    @db.VarChar(150)
+  apellidos              String    @db.VarChar(150)
+  licencia               String    @db.VarChar(20)
+  estado                 Int       @default(1)
+  user_id_registration   Int?
+  date_time_registration DateTime? @default(now()) @db.Timestamptz(6)
+  user_id_modification   Int?
+  date_time_modification DateTime? @db.Timestamptz(6)
+
+  @@index([estado], map: "idx_conductores_estado")
 }
 
 enum TipoPunto {
