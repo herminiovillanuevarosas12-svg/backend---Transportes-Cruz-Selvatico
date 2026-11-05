@@ -40,6 +40,19 @@ const obtenerSiguienteNumero = async (tipoComprobante, serie) => {
 };
 
 /**
+ * Nombre del usuario que registra el comprobante (se imprime como "USUARIO" en KEYFACIL)
+ * @param {number} userId - ID del usuario
+ * @returns {string|null} Nombre o null si no existe
+ */
+const obtenerNombreUsuario = async (userId) => {
+  if (!userId) return null;
+  const filas = await prisma.$queryRaw`
+    SELECT nombres FROM tbl_usuarios WHERE id = ${parseInt(userId)} LIMIT 1
+  `;
+  return filas[0]?.nombres || null;
+};
+
+/**
  * Construir payload para KEYFACIL
  * Estructura según Manual de Integración KEYFACIL
  * @param {Object} config - Configuración SUNAT
@@ -53,8 +66,12 @@ const construirPayloadKeyfacil = (config, data) => {
     numero,
     fechaEmision,
     cliente,
-    items
+    items,
+    vendedorNombre
   } = data;
+
+  // KEYFACIL imprime este nombre como "USUARIO" en el ticket; si no se envía, muestra "ERP"
+  const vendedor = String(vendedorNombre ?? '').trim();
 
   // KEYFACIL interpreta una fecha sin hora ("2026-09-04") como medianoche UTC y la
   // muestra en hora de Lima: el comprobante queda fechado el día anterior a las 19:00.
@@ -75,6 +92,7 @@ const construirPayloadKeyfacil = (config, data) => {
     cliente_documento: cliente.numDoc,
     cliente_nombre: cliente.razonSocial,
     cliente_direccion: cliente.direccion || '',
+    ...(vendedor && { vendedor_nombre: vendedor }),
     moneda: 'PEN',
     incluir_pdf: true,
     incluir_xml: true,
@@ -246,7 +264,8 @@ const emitirComprobante = async ({
     fechaEmision: utcNow(),
     cliente: clienteNormalizado,
     items: itemsCalculados,
-    totales
+    totales,
+    vendedorNombre: await obtenerNombreUsuario(userId)
   });
 
   // Enviar a KEYFACIL
