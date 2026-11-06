@@ -6,6 +6,7 @@
 const facturacionService = require('../services/facturacionService');
 const guiaRemisionService = require('../services/guiaRemisionService');
 const { registrarAuditoria } = require('../services/auditoriaService');
+const { normalizarPasajeroComprobante } = require('../utils/pasajeroComprobante');
 
 // =============================================================================
 // MÉTRICAS Y DASHBOARD
@@ -94,7 +95,8 @@ const emitirComprobante = async (req, res) => {
       serie,
       cliente,
       items,
-      incluyeIgv
+      incluyeIgv,
+      pasajero
     } = req.body;
 
     // Validaciones
@@ -118,6 +120,19 @@ const emitirComprobante = async (req, res) => {
       }
     }
 
+    // Pasajero opcional: completo (nombre, documento y teléfono) o ninguno
+    let pasajeroNormalizado;
+    try {
+      pasajeroNormalizado = normalizarPasajeroComprobante(pasajero);
+    } catch (errorPasajero) {
+      return res.status(400).json({ error: errorPasajero.message });
+    }
+
+    // Se registra antes de emitir para que quede en la cartera de pasajeros
+    if (pasajeroNormalizado) {
+      await facturacionService.registrarPasajeroComprobante(pasajeroNormalizado, req.user.id);
+    }
+
     const comprobante = await facturacionService.emitirComprobante({
       tipoComprobante,
       serie,
@@ -126,7 +141,8 @@ const emitirComprobante = async (req, res) => {
       origenTipo: 'MANUAL',
       origenId: null,
       userId: req.user.id,
-      incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null
+      incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null,
+      nombreUsuarioTicket: pasajeroNormalizado?.nombreCompleto || null
     });
 
     // Auditoría
@@ -134,7 +150,10 @@ const emitirComprobante = async (req, res) => {
       tipoComprobante,
       numeroCompleto: comprobante.numeroCompleto,
       cliente: cliente.razonSocial,
-      total: comprobante.total
+      total: comprobante.total,
+      pasajero: pasajeroNormalizado
+        ? { documento: pasajeroNormalizado.documentoIdentidad, nombre: pasajeroNormalizado.nombreCompleto }
+        : null
     });
 
     res.status(201).json({

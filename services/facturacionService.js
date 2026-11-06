@@ -40,16 +40,38 @@ const obtenerSiguienteNumero = async (tipoComprobante, serie) => {
 };
 
 /**
- * Nombre del usuario que registra el comprobante (se imprime como "USUARIO" en KEYFACIL)
- * @param {number} userId - ID del usuario
- * @returns {string|null} Nombre o null si no existe
+ * Registrar o actualizar el pasajero de un comprobante manual en tbl_pasajeros
+ * (mismo criterio que la venta de pasajes: se busca por documento y se actualizan nombre y teléfono)
+ * @param {Object} pasajero - Pasajero ya normalizado (utils/pasajeroComprobante)
+ * @param {number} userId - ID del usuario que registra
+ * @returns {Object} Pasajero guardado
  */
-const obtenerNombreUsuario = async (userId) => {
-  if (!userId) return null;
-  const filas = await prisma.$queryRaw`
-    SELECT nombres FROM tbl_usuarios WHERE id = ${parseInt(userId)} LIMIT 1
-  `;
-  return filas[0]?.nombres || null;
+const registrarPasajeroComprobante = async (pasajero, userId) => {
+  const existente = await prisma.pasajero.findFirst({
+    where: { documentoIdentidad: pasajero.documentoIdentidad }
+  });
+
+  if (existente) {
+    return prisma.pasajero.update({
+      where: { id: existente.id },
+      data: {
+        nombreCompleto: pasajero.nombreCompleto,
+        telefono: pasajero.telefono,
+        userIdModification: userId,
+        dateTimeModification: utcNow()
+      }
+    });
+  }
+
+  return prisma.pasajero.create({
+    data: {
+      nombreCompleto: pasajero.nombreCompleto,
+      documentoIdentidad: pasajero.documentoIdentidad,
+      tipo_documento: pasajero.tipoDocumento,
+      telefono: pasajero.telefono,
+      userIdRegistration: userId
+    }
+  });
 };
 
 /**
@@ -67,11 +89,12 @@ const construirPayloadKeyfacil = (config, data) => {
     fechaEmision,
     cliente,
     items,
-    vendedorNombre
+    nombreUsuarioTicket
   } = data;
 
-  // KEYFACIL imprime este nombre como "USUARIO" en el ticket; si no se envía, muestra "ERP"
-  const vendedor = String(vendedorNombre ?? '').trim();
+  // KEYFACIL imprime vendedor_nombre como "USUARIO" en el ticket (si no se envía, muestra "ERP").
+  // Va la persona del servicio (pasajero o remitente), nunca el usuario del sistema.
+  const vendedor = String(nombreUsuarioTicket ?? '').trim();
 
   // KEYFACIL interpreta una fecha sin hora ("2026-09-04") como medianoche UTC y la
   // muestra en hora de Lima: el comprobante queda fechado el día anterior a las 19:00.
@@ -172,6 +195,8 @@ const calcularTotales = (items, igvPorcentaje, incluyeIgv = true) => {
  * Emitir comprobante electrónico
  * @param {Object} params - Parámetros del comprobante
  * @param {boolean} params.incluyeIgv - Si se incluye IGV (null = usar config default)
+ * @param {string|null} params.nombreUsuarioTicket - Persona impresa como "USUARIO" en el ticket
+ *        de KEYFACIL: pasajero (pasajes) o remitente (encomiendas). null = no se envía.
  * @returns {Object} Comprobante creado
  */
 const emitirComprobante = async ({
@@ -183,7 +208,8 @@ const emitirComprobante = async ({
   origenId = null,
   userId,
   comentario = null,
-  incluyeIgv = null
+  incluyeIgv = null,
+  nombreUsuarioTicket = null
 }) => {
   // Obtener configuración
   const config = await keyfacilService.getConfig();
@@ -265,7 +291,7 @@ const emitirComprobante = async ({
     cliente: clienteNormalizado,
     items: itemsCalculados,
     totales,
-    vendedorNombre: await obtenerNombreUsuario(userId)
+    nombreUsuarioTicket
   });
 
   // Enviar a KEYFACIL
@@ -392,7 +418,8 @@ const emitirDesdeTicket = async (ticketId, { tipoComprobante, serie, cliente, us
     origenTipo: 'TICKET',
     origenId: ticketId,
     userId,
-    incluyeIgv
+    incluyeIgv,
+    nombreUsuarioTicket: ticket.pasajero?.nombreCompleto
   });
 
   // Actualizar ticket con referencia al comprobante
@@ -457,7 +484,8 @@ const emitirDesdeEncomienda = async (encomiendaId, { tipoComprobante, serie, cli
     origenTipo: 'ENCOMIENDA',
     origenId: encomiendaId,
     userId,
-    incluyeIgv
+    incluyeIgv,
+    nombreUsuarioTicket: encomienda.remitenteNombre
   });
 
   // Actualizar encomienda con referencia al comprobante
@@ -926,6 +954,7 @@ module.exports = {
   obtenerSiguienteNumero,
   construirPayloadKeyfacil,
   calcularTotales,
+  registrarPasajeroComprobante,
   emitirComprobante,
   emitirDesdeTicket,
   emitirDesdeEncomienda,

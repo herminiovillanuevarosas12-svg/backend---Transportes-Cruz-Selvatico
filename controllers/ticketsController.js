@@ -477,7 +477,8 @@ const vender = async (req, res) => {
           origenId: resultado.id,
           userId: req.user.id,
           comentario: pasajero.comentario || null,
-          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null
+          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null,
+          nombreUsuarioTicket: resultado.pasajero.nombreCompleto
         });
 
         await prisma.$executeRaw`
@@ -505,7 +506,8 @@ const vender = async (req, res) => {
           origenId: resultado.id,
           userId: req.user.id,
           comentario: pasajero.comentario || null,
-          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null
+          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null,
+          nombreUsuarioTicket: resultado.pasajero.nombreCompleto
         });
 
         await prisma.$executeRaw`
@@ -1122,7 +1124,8 @@ const venderInstantaneo = async (req, res) => {
           origenId: resultado.id,
           userId: req.user.id,
           comentario: pasajero.comentario || null,
-          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null
+          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null,
+          nombreUsuarioTicket: resultado.pasajero.nombreCompleto
         });
 
         await prisma.$executeRaw`
@@ -1150,7 +1153,8 @@ const venderInstantaneo = async (req, res) => {
           origenId: resultado.id,
           userId: req.user.id,
           comentario: pasajero.comentario || null,
-          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null
+          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null,
+          nombreUsuarioTicket: resultado.pasajero.nombreCompleto
         });
 
         await prisma.$executeRaw`

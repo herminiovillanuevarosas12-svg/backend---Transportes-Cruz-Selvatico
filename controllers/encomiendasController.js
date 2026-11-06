@@ -478,7 +478,8 @@ const registrar = async (req, res) => {
           origenId: encomienda.id,
           userId: req.user.id,
           comentario: comentario || null,
-          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null
+          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null,
+          nombreUsuarioTicket: remitente.nombre
         });
 
         await prisma.$executeRaw`
@@ -506,7 +507,8 @@ const registrar = async (req, res) => {
           origenId: encomienda.id,
           userId: req.user.id,
           comentario: comentario || null,
-          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null
+          incluyeIgv: incluyeIgv !== undefined ? incluyeIgv : null,
+          nombreUsuarioTicket: remitente.nombre
         });
 
         await prisma.$executeRaw`
@@ -1148,7 +1150,8 @@ const retirar = async (req, res) => {
               }],
               origenTipo: 'ENCOMIENDA',
               origenId: encomienda.id,
-              userId: req.user.id
+              userId: req.user.id,
+              nombreUsuarioTicket: encomienda.remitenteNombre
             });
 
             await prisma.$executeRaw`
@@ -1181,7 +1184,8 @@ const retirar = async (req, res) => {
               }],
               origenTipo: 'ENCOMIENDA',
               origenId: encomienda.id,
-              userId: req.user.id
+              userId: req.user.id,
+              nombreUsuarioTicket: encomienda.remitenteNombre
             });
 
             await prisma.$executeRaw`
