@@ -82,8 +82,27 @@ const normalizarCodigoTracking = (entrada) => {
   return `ENC-${coincidencia[1].padStart(8, '0')}`;
 };
 
+// El codigo de rastreo lo genera la BD (fn_generar_codigo_rastreo, DEFAULT de
+// tbl_encomiendas.codigo_rastreo): 6 caracteres en mayuscula que mezclan letras,
+// numeros y simbolos. Ver scripts/codigo_rastreo_encomiendas.sql
+const LONGITUD_CODIGO_RASTREO = 6;
+
+/**
+ * Normalizar un codigo de rastreo ingresado por el usuario
+ * Quita espacios y pasa a mayusculas (los codigos se generan en mayuscula).
+ * @param {string} entrada - Texto ingresado
+ * @returns {string} Codigo normalizado, o cadena vacia si no tiene 6 caracteres
+ */
+const normalizarCodigoRastreo = (entrada) => {
+  if (!entrada) return '';
+
+  const limpio = String(entrada).replace(/\s+/g, '').toUpperCase();
+  return limpio.length === LONGITUD_CODIGO_RASTREO ? limpio : '';
+};
+
 module.exports = {
   generarCodigoTicket,
   generarCodigoTracking,
-  normalizarCodigoTracking
+  normalizarCodigoTracking,
+  normalizarCodigoRastreo
 };

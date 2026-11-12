@@ -13,12 +13,16 @@ const preguntasFrecuentesController = require('../controllers/preguntasFrecuente
 const promocionesController = require('../controllers/promocionesController');
 const contactoController = require('../controllers/contactoController');
 const encomiendasInfoController = require('../controllers/encomiendasInfoController');
+const seccionesCardsController = require('../controllers/seccionesCardsController');
 const infoViajeController = require('../controllers/infoViajeController');
 const prisma = require('../config/prisma');
 const { formatTimeForAPI } = require('../utils/dateUtils');
 
 // GET /api/public/tracking/:codigo - Consultar encomienda (publico)
 router.get('/tracking/:codigo', encomiendasController.consultaPublica);
+
+// GET /api/public/tracking/rastreo/:codigo - Consultar por codigo de rastreo del ticket (publico)
+router.get('/tracking/rastreo/:codigo', encomiendasController.consultaPublicaPorCodigoRastreo);
 
 // GET /api/public/landing/banners - Obtener banners activos
 router.get('/landing/banners', landingController.getBannersPublicos);
@@ -135,7 +139,8 @@ router.get('/promociones', promocionesController.getPromocionesPublicas);
 router.post('/contacto', contactoController.enviarMensaje);
 
 // === ENCOMIENDAS INFO (publico) ===
-router.get('/encomiendas-ventajas', encomiendasInfoController.getVentajasPublicas);
+router.get('/encomiendas-hero-imagenes', encomiendasInfoController.listarHeroImagenes);
+router.get('/encomiendas-secciones-cards', seccionesCardsController.listarPublicas);
 router.get('/encomiendas-secciones', encomiendasInfoController.getSeccionesPublicas);
 
 // === NOSOTROS (publico) ===

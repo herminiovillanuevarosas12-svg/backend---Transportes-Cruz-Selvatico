@@ -50,18 +50,39 @@ const verifyToken = (req, res, next) => {
 const requireRole = (roles) => {
   const rolesArray = Array.isArray(roles) ? roles : [roles];
 
-  return (req, res, next) => {
+  return async (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
         error: 'No autenticado'
       });
     }
 
-    // El rol viene en el token, pero necesitamos verificar contra la DB
-    // Por ahora verificamos con el id_rol
-    // En produccion, cargar el nombre del rol desde la DB
+    try {
+      // El rol se toma de la DB (requirePermission ya lo deja en req.userRol)
+      if (!req.userRol) {
+        const { findUserById } = require('../models/authModel');
+        const usuario = await findUserById(req.user.id);
+        if (!usuario) {
+          return res.status(401).json({
+            error: 'Usuario no encontrado'
+          });
+        }
+        req.userRol = usuario.rol;
+      }
 
-    next();
+      if (!rolesArray.includes(req.userRol)) {
+        return res.status(403).json({
+          error: 'No tiene permisos para esta accion'
+        });
+      }
+
+      next();
+    } catch (error) {
+      console.error('Error verificando rol:', error);
+      return res.status(500).json({
+        error: 'Error al verificar rol'
+      });
+    }
   };
 };
 

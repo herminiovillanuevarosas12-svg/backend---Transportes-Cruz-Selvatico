@@ -8,6 +8,7 @@ const { registrarAuditoria } = require('../services/auditoriaService');
 const { generarCodigoTicket } = require('../services/codigoService');
 const facturacionService = require('../services/facturacionService');
 const { validarDocumento } = require('../utils/documentoIdentidad');
+const { normalizarClienteBoletaElegido } = require('../utils/clienteComprobante');
 const {
   utcNow,
   parseCivilDate,
@@ -164,6 +165,7 @@ const vender = async (req, res) => {
       puntosACanjear = 0,
       tipoDocumento,
       clienteFactura,
+      clienteBoleta,
       precioManual,
       incluyeIgv
     } = req.body;
@@ -213,6 +215,17 @@ const vender = async (req, res) => {
     }
     const tipoDocPasajero = documentoPasajero.tipo;
     pasajero.documentoIdentidad = documentoPasajero.numero;
+
+    // Cliente de la boleta elegido en el formulario (DNI, CE, RUC o sin documento).
+    // Se valida antes de vender; si no llega, la boleta sale a nombre del pasajero.
+    let clienteBoletaElegido = null;
+    if (tipoDocumento === 'BOLETA') {
+      try {
+        clienteBoletaElegido = normalizarClienteBoletaElegido(clienteBoleta);
+      } catch (errorCliente) {
+        return res.status(400).json({ error: errorCliente.message });
+      }
+    }
 
     if (!['EFECTIVO', 'YAPE', 'TARJETA'].includes(metodoPago)) {
       return res.status(400).json({
@@ -460,7 +473,7 @@ const vender = async (req, res) => {
         comprobante = await facturacionService.emitirComprobante({
           tipoComprobante: '03',
           serie: 'BT74',
-          cliente: {
+          cliente: clienteBoletaElegido || {
             tipoDoc: tipoDocPasajero,
             numDoc: resultado.pasajero.documentoIdentidad,
             razonSocial: resultado.pasajero.nombreCompleto,
@@ -830,6 +843,7 @@ const venderInstantaneo = async (req, res) => {
       puntosACanjear = 0,
       tipoDocumento,
       clienteFactura,
+      clienteBoleta,
       precioManual,
       incluyeIgv
     } = req.body;
@@ -879,6 +893,16 @@ const venderInstantaneo = async (req, res) => {
     }
     const tipoDocPasajero = documentoPasajero.tipo;
     pasajero.documentoIdentidad = documentoPasajero.numero;
+
+    // Cliente de la boleta elegido en el formulario; si no llega, la boleta sale a nombre del pasajero
+    let clienteBoletaElegido = null;
+    if (tipoDocumento === 'BOLETA') {
+      try {
+        clienteBoletaElegido = normalizarClienteBoletaElegido(clienteBoleta);
+      } catch (errorCliente) {
+        return res.status(400).json({ error: errorCliente.message });
+      }
+    }
 
     if (!['EFECTIVO', 'YAPE', 'TARJETA'].includes(metodoPago)) {
       return res.status(400).json({
@@ -1107,7 +1131,7 @@ const venderInstantaneo = async (req, res) => {
         comprobante = await facturacionService.emitirComprobante({
           tipoComprobante: '03',
           serie: 'BT74',
-          cliente: {
+          cliente: clienteBoletaElegido || {
             tipoDoc: tipoDocPasajero,
             numDoc: resultado.pasajero.documentoIdentidad,
             razonSocial: resultado.pasajero.nombreCompleto,

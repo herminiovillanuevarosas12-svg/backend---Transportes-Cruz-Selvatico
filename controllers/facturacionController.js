@@ -7,6 +7,7 @@ const facturacionService = require('../services/facturacionService');
 const guiaRemisionService = require('../services/guiaRemisionService');
 const { registrarAuditoria } = require('../services/auditoriaService');
 const { normalizarPasajeroComprobante } = require('../utils/pasajeroComprobante');
+const { normalizarClienteComprobante } = require('../utils/clienteComprobante');
 
 // =============================================================================
 // MÉTRICAS Y DASHBOARD
@@ -106,10 +107,11 @@ const emitirComprobante = async (req, res) => {
       });
     }
 
-    if (!cliente.tipoDoc || !cliente.numDoc || !cliente.razonSocial) {
-      return res.status(400).json({
-        error: 'El cliente debe tener tipoDoc, numDoc y razonSocial'
-      });
+    // Tipo/número de documento coherentes y nombre (o "Sin documento" en boletas)
+    try {
+      normalizarClienteComprobante(cliente, tipoComprobante);
+    } catch (errorCliente) {
+      return res.status(400).json({ error: errorCliente.message });
     }
 
     for (const item of items) {
@@ -182,10 +184,11 @@ const emitirDesdeTicket = async (req, res) => {
       });
     }
 
-    if (!cliente.tipoDoc || !cliente.numDoc || !cliente.razonSocial) {
-      return res.status(400).json({
-        error: 'El cliente debe tener tipoDoc, numDoc y razonSocial'
-      });
+    // Tipo/número de documento coherentes y nombre (o "Sin documento" en boletas)
+    try {
+      normalizarClienteComprobante(cliente, tipoComprobante);
+    } catch (errorCliente) {
+      return res.status(400).json({ error: errorCliente.message });
     }
 
     const comprobante = await facturacionService.emitirDesdeTicket(
@@ -227,10 +230,11 @@ const emitirDesdeEncomienda = async (req, res) => {
       });
     }
 
-    if (!cliente.tipoDoc || !cliente.numDoc || !cliente.razonSocial) {
-      return res.status(400).json({
-        error: 'El cliente debe tener tipoDoc, numDoc y razonSocial'
-      });
+    // Tipo/número de documento coherentes y nombre (o "Sin documento" en boletas)
+    try {
+      normalizarClienteComprobante(cliente, tipoComprobante);
+    } catch (errorCliente) {
+      return res.status(400).json({ error: errorCliente.message });
     }
 
     const comprobante = await facturacionService.emitirDesdeEncomienda(

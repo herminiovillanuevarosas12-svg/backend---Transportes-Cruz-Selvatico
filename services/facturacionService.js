@@ -16,7 +16,7 @@ const prisma = require('../config/prisma');
 const keyfacilService = require('./keyfacilService');
 const { mapearRespuestaEmision, resolverArchivo, ArchivoKeyfacilError } = require('./keyfacilArchivosService');
 const { utcNow, toIsoInstant, civilDatePeruToIsoInstant } = require('../utils/dateUtils');
-const { normalizarClienteComprobante } = require('../utils/clienteComprobante');
+const { normalizarClienteComprobante, validarMontoClienteSinDocumento } = require('../utils/clienteComprobante');
 
 /**
  * Obtener el siguiente número de comprobante
@@ -237,6 +237,9 @@ const emitirComprobante = async ({
   // Calcular IGV y totales (igvPorcentaje viene de tbl_configuracion_sunat, DEFAULT 18.00 en BD)
   const igvPorcentaje = parseFloat(config.igvPorcentaje);
   const { items: itemsCalculados, totales } = calcularTotales(items, igvPorcentaje, aplicaIgv);
+
+  // Boleta sin documento del cliente: solo hasta S/ 700 (SUNAT)
+  validarMontoClienteSinDocumento(clienteNormalizado, totales.total);
 
   // Obtener siguiente número
   const numero = await obtenerSiguienteNumero(tipoComprobante, serie);

@@ -11,7 +11,9 @@ const promocionesController = require('../controllers/promocionesController');
 const contactoController = require('../controllers/contactoController');
 const encomiendasInfoController = require('../controllers/encomiendasInfoController');
 const infoViajeController = require('../controllers/infoViajeController');
-const { verifyToken, requirePermission } = require('../middleware/authMiddleware');
+const seccionesCardsController = require('../controllers/seccionesCardsController');
+const { verifyToken, requirePermission, requireRole } = require('../middleware/authMiddleware');
+const { ROLES } = require('../config/roles');
 const { uploadBanner, handleMulterError } = require('../middleware/bannerUpload');
 
 // Todas las rutas requieren autenticacion
@@ -118,28 +120,57 @@ router.put('/contacto-mensajes/:id',
   requirePermission('LANDING_EDITAR'),
   contactoController.actualizarMensaje);
 
-// === ENCOMIENDAS VENTAJAS ===
-router.get('/encomiendas-ventajas',
-  requirePermission('LANDING_VER'),
-  encomiendasInfoController.listar);
+// === ENCOMIENDAS: SECCIONES DE CARDS (solo SUPER_ADMIN, edicion inline en /encomiendas-info) ===
+const soloSuperAdmin = [requirePermission('LANDING_EDITAR'), requireRole(ROLES.SUPER_ADMIN)];
 
+router.get('/encomiendas-secciones-cards',
+  soloSuperAdmin,
+  seccionesCardsController.listarAdmin);
+
+router.post('/encomiendas-secciones-cards',
+  soloSuperAdmin,
+  seccionesCardsController.crearSeccion);
+
+// /orden antes de /:id
+router.put('/encomiendas-secciones-cards/orden',
+  soloSuperAdmin,
+  seccionesCardsController.reordenarSecciones);
+
+router.put('/encomiendas-secciones-cards/:id',
+  soloSuperAdmin,
+  seccionesCardsController.renombrarSeccion);
+
+router.patch('/encomiendas-secciones-cards/:id/toggle',
+  soloSuperAdmin,
+  seccionesCardsController.toggleSeccion);
+
+router.delete('/encomiendas-secciones-cards/:id',
+  soloSuperAdmin,
+  seccionesCardsController.eliminarSeccion);
+
+// Cards de cada seccion
 router.post('/encomiendas-ventajas',
-  requirePermission('LANDING_EDITAR'),
+  soloSuperAdmin,
   uploadBanner.single('imagen'),
-  encomiendasInfoController.crear);
+  seccionesCardsController.crearCard);
+
+// /orden antes de /:id
+router.put('/encomiendas-ventajas/orden',
+  soloSuperAdmin,
+  seccionesCardsController.reordenarCards);
 
 router.put('/encomiendas-ventajas/:id',
-  requirePermission('LANDING_EDITAR'),
+  soloSuperAdmin,
   uploadBanner.single('imagen'),
-  encomiendasInfoController.actualizar);
-
-router.delete('/encomiendas-ventajas/:id',
-  requirePermission('LANDING_EDITAR'),
-  encomiendasInfoController.eliminar);
+  seccionesCardsController.actualizarCard);
 
 router.patch('/encomiendas-ventajas/:id/toggle',
-  requirePermission('LANDING_EDITAR'),
-  encomiendasInfoController.toggleActivo);
+  soloSuperAdmin,
+  seccionesCardsController.toggleCard);
+
+router.delete('/encomiendas-ventajas/:id',
+  soloSuperAdmin,
+  seccionesCardsController.eliminarCard);
 
 // === ENCOMIENDAS SECCIONES (Servicios/Flota) ===
 router.get('/encomiendas-secciones',

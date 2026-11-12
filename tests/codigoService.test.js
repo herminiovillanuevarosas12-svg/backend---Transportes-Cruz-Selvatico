@@ -5,7 +5,31 @@
 
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizarCodigoTracking } = require('../services/codigoService');
+const { normalizarCodigoTracking, normalizarCodigoRastreo } = require('../services/codigoService');
+
+describe('normalizarCodigoRastreo', () => {
+  test('pasa a mayusculas y conserva numeros y simbolos', () => {
+    assert.equal(normalizarCodigoRastreo('a7#k$2'), 'A7#K$2');
+    assert.equal(normalizarCodigoRastreo('J*MC$9'), 'J*MC$9');
+  });
+
+  test('elimina espacios al inicio, al final e intermedios', () => {
+    assert.equal(normalizarCodigoRastreo('  hn9 5=6 '), 'HN95=6');
+  });
+
+  test('devuelve cadena vacia si no tiene exactamente 6 caracteres', () => {
+    assert.equal(normalizarCodigoRastreo('ABC12'), '');
+    assert.equal(normalizarCodigoRastreo('ABC12#X'), '');
+    assert.equal(normalizarCodigoRastreo('ENC-00000146'), '');
+  });
+
+  test('devuelve cadena vacia para entradas vacias o nulas', () => {
+    assert.equal(normalizarCodigoRastreo(''), '');
+    assert.equal(normalizarCodigoRastreo('   '), '');
+    assert.equal(normalizarCodigoRastreo(null), '');
+    assert.equal(normalizarCodigoRastreo(undefined), '');
+  });
+});
 
 describe('normalizarCodigoTracking', () => {
   test('convierte solo numeros al formato ENC-NNNNNNNN', () => {

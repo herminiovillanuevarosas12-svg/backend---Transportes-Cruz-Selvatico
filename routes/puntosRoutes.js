@@ -9,10 +9,11 @@ const puntosController = require('../controllers/puntosController');
 const { verifyToken, requirePermission } = require('../middleware/authMiddleware');
 
 // GET /api/puntos - Listar todos los puntos
-// Permitido para: gestionar puntos, registrar encomiendas, vender pasajes, elegir destino del manifiesto
+// Permitido para: gestionar puntos, registrar encomiendas, vender pasajes, elegir destino del manifiesto,
+// filtrar el listado de encomiendas por ruta
 router.get('/',
   verifyToken,
-  requirePermission(['PUNTOS_LISTAR', 'ENCOMIENDAS_REGISTRAR', 'PASAJES_VENDER', 'ENCOMIENDAS_MANIFIESTO']),
+  requirePermission(['PUNTOS_LISTAR', 'ENCOMIENDAS_REGISTRAR', 'PASAJES_VENDER', 'ENCOMIENDAS_MANIFIESTO', 'ENCOMIENDAS_LISTAR']),
   puntosController.listar
 );
 

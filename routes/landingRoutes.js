@@ -105,17 +105,35 @@ router.delete(
   landingController.eliminarImagenFondoExperiencia
 );
 
-// PUT /api/landing/config/imagen-encomiendas-hero - Subir/actualizar imagen hero encomiendas
-router.put(
-  '/config/imagen-encomiendas-hero',
-  requirePermission('LANDING_EDITAR'),
-  uploadBanner.single('imagen'),
-  encomiendasInfoController.subirHeroImagen
+/**
+ * ENCOMIENDAS - CARRUSEL HERO (rutas especificas antes de :id)
+ */
+
+// GET /api/landing/encomiendas-hero-imagenes - Listar imagenes del carrusel (admin)
+router.get(
+  '/encomiendas-hero-imagenes',
+  requirePermission('LANDING_VER'),
+  encomiendasInfoController.listarHeroImagenes
 );
 
-// DELETE /api/landing/config/imagen-encomiendas-hero - Eliminar imagen hero encomiendas
+// POST /api/landing/encomiendas-hero-imagenes - Agregar imagen al carrusel
+router.post(
+  '/encomiendas-hero-imagenes',
+  requirePermission('LANDING_EDITAR'),
+  uploadBanner.single('imagen'),
+  encomiendasInfoController.agregarHeroImagen
+);
+
+// PUT /api/landing/encomiendas-hero-imagenes/orden - Reordenar carrusel
+router.put(
+  '/encomiendas-hero-imagenes/orden',
+  requirePermission('LANDING_EDITAR'),
+  encomiendasInfoController.reordenarHeroImagenes
+);
+
+// DELETE /api/landing/encomiendas-hero-imagenes/:id - Eliminar imagen del carrusel
 router.delete(
-  '/config/imagen-encomiendas-hero',
+  '/encomiendas-hero-imagenes/:id',
   requirePermission('LANDING_EDITAR'),
   encomiendasInfoController.eliminarHeroImagen
 );

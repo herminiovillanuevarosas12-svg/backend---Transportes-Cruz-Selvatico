@@ -6,11 +6,12 @@
 const prisma = require('../config/prisma');
 const { EstadoEncomienda } = require('@prisma/client');
 const { registrarAuditoria } = require('../services/auditoriaService');
-const { generarCodigoTracking, normalizarCodigoTracking } = require('../services/codigoService');
+const { generarCodigoTracking, normalizarCodigoTracking, normalizarCodigoRastreo } = require('../services/codigoService');
 const { calcularPrecioEncomienda } = require('../services/preciosService');
 const facturacionService = require('../services/facturacionService');
 const { obtenerManifiestosDeEncomiendas } = require('../services/manifiestoEncomiendaService');
 const { filtroListado, puedeConsultar, evaluarTransicion } = require('../services/accesoEncomiendaService');
+const { filtroRuta } = require('../utils/filtrosEncomienda');
 const { guardarImagenBase64, eliminarFotoEntrega } = require('../middleware/uploadMiddleware');
 const { parsearImagenBase64 } = require('../services/s3Service');
 const QRCode = require('qrcode');
@@ -23,6 +24,7 @@ const {
   normalizarNumeroDocumento,
   validarDocumento
 } = require('../utils/documentoIdentidad');
+const { normalizarClienteBoletaElegido } = require('../utils/clienteComprobante');
 
 /**
  * Obtener configuracion de puntos desde la BD
@@ -54,13 +56,19 @@ const obtenerConfiguracionPuntos = async () => {
 /**
  * Listar encomiendas
  * GET /api/encomiendas
- * Query params: estado, codigoTracking, fechaDesde, fechaHasta
+ * Query params: estado, codigoTracking, dni, fechaDesde, fechaHasta, idPuntoOrigen, idPuntoDestino
  */
 const listar = async (req, res) => {
   try {
     const { estado, codigoTracking, dni, fechaDesde, fechaHasta, page = 1, limit = 20 } = req.query;
 
-    const where = {};
+    // Ruta: origen y/o destino
+    const { filtro: filtroDeRuta, error: errorRuta } = filtroRuta(req.query);
+    if (errorRuta) {
+      return res.status(400).json({ error: errorRuta });
+    }
+
+    const where = { ...filtroDeRuta };
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     if (estado) {
@@ -167,6 +175,7 @@ const registrar = async (req, res) => {
       puntosACanjear = 0,
       tipoDocumento,
       clienteFactura,
+      clienteBoleta,
       pagoAlRecojo = false,
       claveSeguridad,
       comentario,
@@ -236,6 +245,17 @@ const registrar = async (req, res) => {
       return res.status(400).json({
         error: mensajeErrorDocumento(tipoDocRemitente, 'remitente')
       });
+    }
+
+    // Cliente de la boleta elegido en el formulario; si no llega, la boleta sale a nombre del remitente.
+    // Con pago al recojo no se emite boleta aquí (se elige al retirar).
+    let clienteBoletaElegido = null;
+    if (tipoDocumento === 'BOLETA' && !pagoAlRecojo) {
+      try {
+        clienteBoletaElegido = normalizarClienteBoletaElegido(clienteBoleta);
+      } catch (errorCliente) {
+        return res.status(400).json({ error: errorCliente.message });
+      }
     }
 
     if (!destinatario?.nombre || !destinatario?.telefono) {
@@ -461,7 +481,7 @@ const registrar = async (req, res) => {
         comprobante = await facturacionService.emitirComprobante({
           tipoComprobante: '03',
           serie: 'BT74',
-          cliente: {
+          cliente: clienteBoletaElegido || {
             tipoDoc: tipoDocRemitente,
             numDoc: remitente.dni,
             razonSocial: remitente.nombre,
@@ -946,7 +966,7 @@ const cambiarEstado = async (req, res) => {
 const retirar = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nombreRetiro, fotoBase64, nota, claveIngresada, tipoComprobante, clienteFactura } = req.body;
+    const { nombreRetiro, fotoBase64, nota, claveIngresada, tipoComprobante, clienteFactura, clienteBoleta } = req.body;
 
     // Documento de quien retira: DNI, carnet de extranjería o RUC según el catálogo
     const documentoRetiro = validarDocumento({
@@ -959,6 +979,17 @@ const retirar = async (req, res) => {
     }
     const dniRetiro = documentoRetiro.numero;
     const tipoDocRetiro = documentoRetiro.tipo;
+
+    // Cliente de la boleta (pago al recojo) elegido en el formulario; si no llega, quien retira.
+    // Se valida antes de registrar el retiro para no entregar la encomienda sin comprobante.
+    let clienteBoletaElegido = null;
+    if (tipoComprobante === 'BOLETA') {
+      try {
+        clienteBoletaElegido = normalizarClienteBoletaElegido(clienteBoleta);
+      } catch (errorCliente) {
+        return res.status(400).json({ error: errorCliente.message });
+      }
+    }
 
     // Foto de evidencia opcional: si se envia, validar tamano (max 10MB) y formato
     if (fotoBase64) {
@@ -1122,25 +1153,24 @@ const retirar = async (req, res) => {
           const precioParaComprobante = parseFloat(encomienda.precio_final ?? encomienda.precioCalculado);
 
           if (tipoComprobanteAEmitir === 'BOLETA') {
-            // La boleta se emite a quien paga y retira: nombre y documento de la MISMA persona.
-            // Si el frontend no envía el nombre, el del destinatario solo vale cuando el documento coincide.
-            const numDocRetiro = dniRetiro;
-            const nombreQuienRetira = String(nombreRetiro || '').trim()
-              || (numDocRetiro === normalizarNumeroDocumento(encomienda.destinatario_dni) ? encomienda.destinatarioNombre : '');
+            // Cliente elegido en el formulario; si no llega, la boleta se emite a quien paga y retira:
+            // nombre y documento de la MISMA persona. Si el frontend no envía el nombre,
+            // el del destinatario solo vale cuando el documento coincide.
+            let clienteRetiro = clienteBoletaElegido;
+            if (!clienteRetiro) {
+              const nombreQuienRetira = String(nombreRetiro || '').trim()
+                || (dniRetiro === normalizarNumeroDocumento(encomienda.destinatario_dni) ? encomienda.destinatarioNombre : '');
 
-            if (!nombreQuienRetira) {
-              throw new Error('Se requiere el nombre de quien retira para emitir la boleta');
+              if (!nombreQuienRetira) {
+                throw new Error('Se requiere el nombre de quien retira para emitir la boleta');
+              }
+              clienteRetiro = { tipoDoc: tipoDocRetiro, numDoc: dniRetiro, razonSocial: nombreQuienRetira, direccion: '' };
             }
 
             comprobanteRetiro = await facturacionService.emitirComprobante({
               tipoComprobante: '03',
               serie: 'BT74',
-              cliente: {
-                tipoDoc: tipoDocRetiro,
-                numDoc: numDocRetiro,
-                razonSocial: nombreQuienRetira,
-                direccion: ''
-              },
+              cliente: clienteRetiro,
               items: [{
                 codigo: `ENC-${encomienda.codigoTracking}`,
                 descripcion: `Envio de encomienda ${encomienda.puntoOrigen.nombre} - ${encomienda.puntoDestino.nombre} (${encomienda.tipoPaquete})`,
@@ -1293,6 +1323,7 @@ Recibido sin verificación de contenido.`;
     res.json({
       encomienda: {
         codigo: encomienda.codigoTracking,
+        codigoRastreo: encomienda.codigo_rastreo,
         origen: encomienda.puntoOrigen.nombre,
         destino: encomienda.puntoDestino.nombre,
         remitente: {
@@ -1417,20 +1448,17 @@ const buscarPorDni = async (req, res) => {
 };
 
 /**
- * Consulta publica
- * GET /api/public/tracking/:codigo
+ * Responde la consulta publica de una encomienda buscada por un campo unico.
+ * No expone el codigo de rastreo: quien busca por numero no debe obtenerlo.
+ * @param {object} res - Response de Express
+ * @param {object} where - Filtro unico de Prisma: { codigoTracking } o { codigo_rastreo }
  */
-const consultaPublica = async (req, res) => {
+const responderConsultaPublica = async (res, where) => {
+  const [campo, codigoIntentado] = Object.entries(where)[0];
+
   try {
-    // Acepta el codigo completo (ENC-00000245) o solo el numero (245)
-    const codigo = normalizarCodigoTracking(req.params.codigo);
-
-    if (!codigo) {
-      return res.status(400).json({ error: 'El codigo de tracking es requerido' });
-    }
-
     const encomienda = await prisma.encomienda.findUnique({
-      where: { codigoTracking: codigo },
+      where,
       select: {
         codigoTracking: true,
         estadoActual: true,
@@ -1453,8 +1481,9 @@ const consultaPublica = async (req, res) => {
 
     if (!encomienda) {
       // Registrar intento fallido
-      await registrarAuditoria(null, 'TRACKING_NO_ENCONTRADO', 'ENCOMIENDA', codigo, {
-        codigoIntentado: codigo
+      await registrarAuditoria(null, 'TRACKING_NO_ENCONTRADO', 'ENCOMIENDA', codigoIntentado, {
+        codigoIntentado,
+        campo
       });
 
       return res.status(404).json({ error: 'Encomienda no encontrada' });
@@ -1478,6 +1507,35 @@ const consultaPublica = async (req, res) => {
   }
 };
 
+/**
+ * Consulta publica por codigo de tracking
+ * GET /api/public/tracking/:codigo
+ */
+const consultaPublica = async (req, res) => {
+  // Acepta el codigo completo (ENC-00000245) o solo el numero (245)
+  const codigo = normalizarCodigoTracking(req.params.codigo);
+
+  if (!codigo) {
+    return res.status(400).json({ error: 'El codigo de tracking es requerido' });
+  }
+
+  return responderConsultaPublica(res, { codigoTracking: codigo });
+};
+
+/**
+ * Consulta publica por codigo de rastreo (6 caracteres impresos en el ticket)
+ * GET /api/public/tracking/rastreo/:codigo
+ */
+const consultaPublicaPorCodigoRastreo = async (req, res) => {
+  const codigo = normalizarCodigoRastreo(req.params.codigo);
+
+  if (!codigo) {
+    return res.status(400).json({ error: 'El codigo de rastreo debe tener 6 caracteres' });
+  }
+
+  return responderConsultaPublica(res, { codigo_rastreo: codigo });
+};
+
 module.exports = {
   listar,
   registrar,
@@ -1489,5 +1547,6 @@ module.exports = {
   imprimir,
   generarQR,
   buscarPorDni,
-  consultaPublica
+  consultaPublica,
+  consultaPublicaPorCodigoRastreo
 };

@@ -7,6 +7,10 @@ const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   normalizarClienteComprobante,
+  validarMontoClienteSinDocumento,
+  normalizarClienteBoletaElegido,
+  NUMERO_SIN_DOCUMENTO,
+  NOMBRE_SIN_DOCUMENTO,
   MAX_RAZON_SOCIAL
 } = require('../utils/clienteComprobante');
 
@@ -51,14 +55,39 @@ describe('normalizarClienteComprobante', () => {
     );
   });
 
-  test('rechaza tipos fuera del catálogo (incluido "-" sin documento)', () => {
+  test('rechaza tipos fuera del catálogo', () => {
     assert.throws(
-      () => normalizarClienteComprobante({ tipoDoc: '-', numDoc: '00000000', razonSocial: 'VARIOS' }, '03'),
+      () => normalizarClienteComprobante({ tipoDoc: '7', numDoc: '12345678', razonSocial: 'JUAN' }, '03'),
       /Tipo de documento del cliente inválido/
     );
     assert.throws(
       () => normalizarClienteComprobante({ numDoc: '12345678', razonSocial: 'JUAN' }, '03'),
       /Tipo de documento del cliente inválido/
+    );
+  });
+
+  test('boleta sin documento: ignora el número enviado y conserva nombre y dirección', () => {
+    const r = normalizarClienteComprobante(
+      { tipoDoc: '-', numDoc: '00000000', razonSocial: '  maria   perez ', direccion: ' Jr. Lima 123 ' },
+      '03'
+    );
+    assert.deepEqual(r, {
+      tipoDoc: '-',
+      numDoc: NUMERO_SIN_DOCUMENTO,
+      razonSocial: 'maria perez',
+      direccion: 'Jr. Lima 123'
+    });
+  });
+
+  test('boleta sin documento y sin nombre usa CLIENTES VARIOS', () => {
+    const r = normalizarClienteComprobante({ tipoDoc: '-', razonSocial: '   ' }, '03');
+    assert.equal(r.razonSocial, NOMBRE_SIN_DOCUMENTO);
+  });
+
+  test('factura no acepta cliente sin documento', () => {
+    assert.throws(
+      () => normalizarClienteComprobante({ tipoDoc: '-', razonSocial: 'X' }, '01'),
+      /Solo las boletas se pueden emitir sin documento/
     );
   });
 
@@ -86,5 +115,38 @@ describe('normalizarClienteComprobante', () => {
 
   test('sin objeto cliente lanza error', () => {
     assert.throws(() => normalizarClienteComprobante(null, '03'), /datos del cliente/);
+  });
+});
+
+describe('validarMontoClienteSinDocumento', () => {
+  const sinDoc = { tipoDoc: '-' };
+
+  test('permite sin documento hasta S/ 700 inclusive', () => {
+    assert.doesNotThrow(() => validarMontoClienteSinDocumento(sinDoc, 700));
+    assert.doesNotThrow(() => validarMontoClienteSinDocumento(sinDoc, 35.5));
+  });
+
+  test('rechaza sin documento por encima de S/ 700', () => {
+    assert.throws(() => validarMontoClienteSinDocumento(sinDoc, 700.01), /mayores a S\/ 700/);
+  });
+
+  test('no limita a clientes identificados', () => {
+    assert.doesNotThrow(() => validarMontoClienteSinDocumento({ tipoDoc: '1' }, 5000));
+  });
+});
+
+describe('normalizarClienteBoletaElegido', () => {
+  test('normaliza el cliente enviado por el formulario', () => {
+    const r = normalizarClienteBoletaElegido({ tipoDoc: '6', numDoc: '20609654547', razonSocial: 'ESTILO 19 E.I.R.L.' });
+    assert.equal(r.numDoc, '20609654547');
+  });
+
+  test('sin cliente enviado devuelve null (el flujo usa su cliente por defecto)', () => {
+    assert.equal(normalizarClienteBoletaElegido(undefined), null);
+    assert.equal(normalizarClienteBoletaElegido(null), null);
+  });
+
+  test('valida el cliente enviado', () => {
+    assert.throws(() => normalizarClienteBoletaElegido({ tipoDoc: '1', numDoc: '123', razonSocial: 'X' }), /DNI del cliente/);
   });
 });
