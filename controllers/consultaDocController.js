@@ -5,6 +5,20 @@
  */
 
 const apiPeruService = require('../services/apiPeruService');
+const { describirFalloApiPeru } = require('../utils/apiPeruRespuesta');
+
+/**
+ * Responder una consulta sin datos: 404 solo si el documento no existe;
+ * cuota agotada / token / API caída responden 429 o 503 con `codigo` para el frontend
+ */
+const responderFallo = (res, resultado, mensajeNoEncontrado) => {
+  const fallo = describirFalloApiPeru(resultado.errorTipo, resultado.message || mensajeNoEncontrado);
+  return res.status(fallo.httpStatus).json({
+    success: false,
+    codigo: fallo.codigo,
+    error: fallo.mensaje
+  });
+};
 
 /**
  * Consultar DNI
@@ -40,10 +54,7 @@ const consultarDni = async (req, res) => {
       });
     }
 
-    return res.status(404).json({
-      success: false,
-      error: resultado.message || 'No se encontraron datos para el DNI proporcionado'
-    });
+    return responderFallo(res, resultado, 'No se encontraron datos para el DNI proporcionado');
   } catch (error) {
     console.error('Error consultando DNI:', error);
     return res.status(500).json({
@@ -87,10 +98,7 @@ const consultarRuc = async (req, res) => {
       });
     }
 
-    return res.status(404).json({
-      success: false,
-      error: resultado.message || 'No se encontraron datos para el RUC proporcionado'
-    });
+    return responderFallo(res, resultado, 'No se encontraron datos para el RUC proporcionado');
   } catch (error) {
     console.error('Error consultando RUC:', error);
     return res.status(500).json({

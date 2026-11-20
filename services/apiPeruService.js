@@ -9,6 +9,7 @@
  */
 
 const prisma = require('../config/prisma');
+const { clasificarFalloApiPeru } = require('../utils/apiPeruRespuesta');
 
 // URL base de API Peru
 const APIPERU_BASE_URL = 'https://apiperu.dev/api';
@@ -89,13 +90,22 @@ const guardarEnCache = async (tipo, numero, datos) => {
 
 /**
  * Realizar petición HTTP a API Peru
+ * Si no trae datos, `errorTipo` dice por qué (ver utils/apiPeruRespuesta): solo
+ * NO_ENCONTRADO significa que el documento no existe.
  * @param {string} endpoint - Endpoint relativo (/dni o /ruc)
  * @param {Object} body - Body de la petición
- * @returns {Object} Respuesta de API Peru
+ * @returns {Object} { success, data, message, errorTipo }
  */
 const makeRequest = async (endpoint, body) => {
   const url = `${APIPERU_BASE_URL}${endpoint}`;
-  const token = getToken();
+
+  let token;
+  try {
+    token = getToken();
+  } catch (error) {
+    console.error(`[API Peru] ${error.message}`);
+    return { success: false, data: null, message: null, errorTipo: 'TOKEN_INVALIDO' };
+  }
 
   try {
     const response = await fetch(url, {
@@ -108,49 +118,44 @@ const makeRequest = async (endpoint, body) => {
       body: JSON.stringify(body)
     });
 
-    // Leer respuesta como texto primero para diagnosticar
+    // Leer como texto: si viene HTML (p. ej. Cloudflare) no es una respuesta de la API
     const responseText = await response.text();
+    let responseData = null;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch {
+      // respuestaInvalida: se clasifica como servicio no disponible
+    }
 
-    // Detectar si es HTML en lugar de JSON
-    if (responseText.startsWith('<!DOCTYPE') || responseText.startsWith('<html')) {
-      console.error(`[API Peru] ERROR: Recibido HTML en lugar de JSON. Status: ${response.status}`);
-      console.error(`[API Peru] Primeros 200 chars: ${responseText.substring(0, 200)}`);
+    if (response.ok && responseData?.success) {
       return {
-        success: false,
-        status: response.status,
-        data: null,
-        message: 'Error del servidor API Peru - respuesta inesperada'
+        success: true,
+        data: responseData.data || null,
+        message: responseData.message || null
       };
     }
 
-    // Intentar parsear como JSON
-    let responseData;
-    try {
-      responseData = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('[API Peru] Error parseando respuesta JSON');
-      return {
-        success: false,
-        status: response.status,
-        data: null,
-        message: 'Respuesta inválida de API Peru'
-      };
+    const errorTipo = clasificarFalloApiPeru({
+      status: response.status,
+      code: responseData?.code,
+      respuestaInvalida: !responseData
+    });
+    if (errorTipo !== 'NO_ENCONTRADO') {
+      const detalle = responseData
+        ? `${responseData.code || ''} ${responseData.message || ''}`.trim()
+        : responseText.substring(0, 200);
+      console.error(`[API Peru] ${endpoint} falló (${errorTipo}): HTTP ${response.status} ${detalle}`);
     }
 
     return {
-      success: response.ok && responseData.success,
-      status: response.status,
-      data: responseData.data || null,
-      message: responseData.message || null
+      success: false,
+      data: null,
+      message: responseData?.message || null,
+      errorTipo
     };
   } catch (error) {
     console.error(`[API Peru] Error de red llamando a ${endpoint}:`, error.message);
-    return {
-      success: false,
-      status: 0,
-      data: null,
-      message: `Error de conexión: ${error.message}`
-    };
+    return { success: false, data: null, message: null, errorTipo: 'SERVICIO_NO_DISPONIBLE' };
   }
 };
 
@@ -195,7 +200,8 @@ const consultarDni = async (dni) => {
   return {
     success: false,
     data: null,
-    message: resultado.message || 'No se encontraron datos para el DNI proporcionado'
+    message: resultado.message || 'No se encontraron datos para el DNI proporcionado',
+    errorTipo: resultado.errorTipo
   };
 };
 
@@ -240,7 +246,8 @@ const consultarRuc = async (ruc) => {
   return {
     success: false,
     data: null,
-    message: resultado.message || 'No se encontraron datos para el RUC proporcionado'
+    message: resultado.message || 'No se encontraron datos para el RUC proporcionado',
+    errorTipo: resultado.errorTipo
   };
 };
 
